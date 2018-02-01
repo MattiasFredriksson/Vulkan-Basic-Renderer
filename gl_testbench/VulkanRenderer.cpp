@@ -10,6 +10,8 @@
 #include "Vulkan\ConstantBufferVulkan.h"
 #include "Technique.h"
 
+#define GLFW_INCLUDE_VULKAN
+#include <glfw3.h>
 
 VulkanRenderer::VulkanRenderer() { }
 VulkanRenderer::~VulkanRenderer() { }
@@ -146,11 +148,120 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 	if (chosenPhysicalDevice == -1)
 		throw "No discrete or integrated GPU found";
 
-	// create logical device
+	// Create logical device
+
+	// First attempt to find a queue family supporting both transfer and graphics commands
+	int chosenQueueFamily = -1;
+	for (uint32_t i = 0; i < physicalDeviceQueueFamilyProperties[chosenPhysicalDevice].size(); ++i)
+	{
+		if ((physicalDeviceQueueFamilyProperties[chosenPhysicalDevice][i].queueFlags & VK_QUEUE_TRANSFER_BIT) &&
+			(physicalDeviceQueueFamilyProperties[chosenPhysicalDevice][i].queueFlags & VK_QUEUE_GRAPHICS_BIT))
+		{
+			chosenQueueFamily = i;
+			break;
+		}
+	}
+
+	if (chosenQueueFamily == -1)
+		throw "No simple queue solution found. Do more programming >:|";
+
+	// Info on queues
+	VkDeviceQueueCreateInfo queueCreateInfo = {};
+	queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+	queueCreateInfo.pNext = nullptr;
+	queueCreateInfo.flags = 0;
+	queueCreateInfo.queueFamilyIndex = chosenQueueFamily;
+	queueCreateInfo.queueCount = 1;
+	float prios[] = { 1.0f };
+	queueCreateInfo.pQueuePriorities = prios;
+
+	// Info on device
+	char* deviceLayers[] = { "VK_LAYER_LUNARG_standard_validation" };
+	char* deviceExtensions[] = { "VK_KHR_swapchain" };
+
+	VkDeviceCreateInfo deviceCreateInfo = {};
+	deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+	deviceCreateInfo.pNext = nullptr;
+	deviceCreateInfo.flags = 0;
+	deviceCreateInfo.queueCreateInfoCount = 1;
+	deviceCreateInfo.pQueueCreateInfos = &queueCreateInfo;
+
+	deviceCreateInfo.enabledLayerCount = 1;
+	deviceCreateInfo.ppEnabledLayerNames = deviceLayers;
+
+	deviceCreateInfo.enabledExtensionCount = 1;
+	deviceCreateInfo.ppEnabledExtensionNames = deviceExtensions;
+
+	VkPhysicalDeviceFeatures deviceFeatures = {}; // empty
+	deviceCreateInfo.pEnabledFeatures = &deviceFeatures;
+
+	// Create device
+	vkCreateDevice(physicalDevices[chosenPhysicalDevice], &deviceCreateInfo, nullptr, &device);
 
 	// create window
+	glfwInit();
+	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+	window = glfwCreateWindow(width, height, "Vulkan", nullptr, nullptr);
+	glfwSetWindowUserPointer(window, this);
+	glfwCreateWindowSurface(vulkanInstance, window, nullptr, &windowSurface);
 
-	// create swap chain
+	// Check that queue supports presenting
+	VkBool32 presentingSupported;
+	vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevices[chosenPhysicalDevice], chosenQueueFamily, windowSurface, &presentingSupported);
+	
+	VkSurfaceCapabilitiesKHR surfaceCapabilities;
+	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevices[chosenPhysicalDevice], windowSurface, &surfaceCapabilities);
+
+	if (presentingSupported == VK_FALSE)
+		throw "The selected queue does not support presenting. Do more programming >:|";
+
+	// Get supported formats
+	uint32_t numFormats;
+	std::vector<VkSurfaceFormatKHR> formats;
+	// Get number of formats
+	vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevices[chosenPhysicalDevice], windowSurface, &numFormats, nullptr);
+	// Resize array
+	formats.resize(numFormats);
+	// Finally, get the supported formats
+	vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevices[chosenPhysicalDevice], windowSurface, &numFormats, &formats[0]);
+
+	// Create swap chain
+	VkSwapchainCreateInfoKHR swapchainCreateInfo = {};
+	swapchainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+	swapchainCreateInfo.pNext = nullptr;
+	swapchainCreateInfo.flags = 0;
+	swapchainCreateInfo.surface = windowSurface;
+	swapchainCreateInfo.minImageCount = surfaceCapabilities.minImageCount;
+	swapchainCreateInfo.imageFormat = formats[0].format;	// Just select the first available format
+	swapchainCreateInfo.imageColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
+	
+	VkExtent2D swapchainExtent;
+	swapchainExtent.height = height;
+	swapchainExtent.width = width;
+	swapchainCreateInfo.imageExtent = swapchainExtent;
+	swapchainCreateInfo.imageArrayLayers = 1;
+	swapchainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+	swapchainCreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	swapchainCreateInfo.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+	swapchainCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+	swapchainCreateInfo.presentMode = VK_PRESENT_MODE_IMMEDIATE_KHR; // vkGetPhysicalDeviceSurfacePresentModesKHR(...) should be called to check valid present modes
+	swapchainCreateInfo.clipped = VK_FALSE;
+	swapchainCreateInfo.oldSwapchain = NULL;
+
+	result = vkCreateSwapchainKHR(device, &swapchainCreateInfo, nullptr, &swapchain);
+	if (result != VK_SUCCESS)
+		throw "Failed to create swapchain";
+
+	// Aquire the swapchain images
+	uint32_t numSwapchainImages;
+	// First ask for number of images
+	vkGetSwapchainImagesKHR(device, swapchain, &numSwapchainImages, nullptr);
+	// Resize array
+	swapchainImages.resize(numSwapchainImages);
+	// Get the images
+	result = vkGetSwapchainImagesKHR(device, swapchain, &numSwapchainImages, &swapchainImages[0]);
+	if (result != VK_SUCCESS)
+		throw "Failed to get swapchain images";
 
 	// assign queues/command buffers??
 }

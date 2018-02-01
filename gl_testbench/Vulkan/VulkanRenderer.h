@@ -2,8 +2,12 @@
 
 #include "../Renderer.h"
 
+#define VK_VERSION_1_0
+
 #include <SDL.h>
 #include <GL/glew.h>
+#define GLFW_INCLUDE_VULKAN
+#include <glfw3.h>
 
 #pragma comment(lib, "vulkan-1.lib")
 #pragma comment(lib,"glew32.lib")
@@ -48,6 +52,15 @@ private:
 	std::vector<VkPhysicalDeviceFeatures> physicalDeviceFeatures;					// Holds features of corresponding physical device in physicalDevices
 	std::vector<VkPhysicalDeviceMemoryProperties> physicalDeviceMemoryProperties;	// Holds memory properties of corresponding physical device in physicalDevices
 	std::vector<std::vector<VkQueueFamilyProperties>> physicalDeviceQueueFamilyProperties;		// Holds queue properties of corresponding physical device in physicalDevices
+
+	VkDevice device;
+
+	GLFWwindow* window;
+
+	VkSurfaceKHR windowSurface;
+	VkSwapchainKHR swapchain;
+
+	std::vector<VkImage> swapchainImages;	// Array of images in the swapchain, use vkAquireNextImageKHR(...) to aquire image for drawing to
 
 	int chosenPhysicalDevice;
 };
