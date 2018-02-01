@@ -5,12 +5,12 @@
 #include <SDL.h>
 #include <GL/glew.h>
 
-#pragma comment(lib, "opengl32.lib")
+#pragma comment(lib, "vulkan-1.lib")
 #pragma comment(lib,"glew32.lib")
 #pragma comment(lib,"SDL2.lib")
 #pragma comment(lib,"SDL2main.lib")
 
-
+#include "vulkan\vulkan.h"
 
 class VulkanRenderer : public Renderer
 {
@@ -35,12 +35,20 @@ public:
 	void present();
 	int shutdown();
 
-	void setClearColor(float, float, float, float);
-	void clearBuffer(unsigned int);
+	void setClearColor(float r, float g, float b, float a);
+	void clearBuffer(unsigned int flag);
 	void setRenderState(RenderState* ps);
 	void submit(Mesh* mesh);
 	void frame();
 
 private:
+	VkInstance vulkanInstance;
+	std::vector<VkPhysicalDevice> physicalDevices;									// Holds handles to the physical devices detected
+	std::vector<VkPhysicalDeviceProperties> physicalDeviceProperties;				// Holds properties of corresponding physical device in physicalDevices
+	std::vector<VkPhysicalDeviceFeatures> physicalDeviceFeatures;					// Holds features of corresponding physical device in physicalDevices
+	std::vector<VkPhysicalDeviceMemoryProperties> physicalDeviceMemoryProperties;	// Holds memory properties of corresponding physical device in physicalDevices
+	std::vector<std::vector<VkQueueFamilyProperties>> physicalDeviceQueueFamilyProperties;		// Holds queue properties of corresponding physical device in physicalDevices
+
+	int chosenPhysicalDevice;
 };
 
