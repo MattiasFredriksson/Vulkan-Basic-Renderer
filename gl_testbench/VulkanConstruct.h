@@ -80,9 +80,9 @@ int chooseQueueFamily(VkPhysicalDevice &device, VkQueueFlags* pref_queueFlag, in
 	return -1;
 }
 
-/* Find a suitable discrete or integrated GPU device.
+/* Find the first discrete GPU device (or the first integrated if there are no discrete devices).
 */
-VkPhysicalDevice choosePhysicalDevice(VkInstance &instance)
+VkPhysicalDevice choosePhysicalDevice_First(VkInstance &instance)
 {
 
 	std::vector<VkPhysicalDevice> physicalDevices;									// Holds handles to the physical devices detected

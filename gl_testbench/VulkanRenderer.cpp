@@ -197,7 +197,7 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 #ifdef NO_VSYNC
 		VK_PRESENT_MODE_IMMEDIATE_KHR,// Immediately presents images to screen
 #endif
-		VK_PRESENT_MODE_MAILBOX_KHR
+		VK_PRESENT_MODE_MAILBOX_KHR // Oldest finished frame are replaced if 'framebuffer' queue is filled.
 	};
 	VkPresentModeKHR presentMode = chooseSwapPresentMode(physicalDevice, windowSurface, presentModePref, sizeof(presentModePref) / sizeof(VkPresentModeKHR));
 
