@@ -9,9 +9,9 @@
 #include "Vulkan\RenderStateVulkan.h"
 #include "Vulkan\ConstantBufferVulkan.h"
 #include "Technique.h"
-
-#define GLFW_INCLUDE_VULKAN
-#include <glfw3.h>
+#include <SDL_syswm.h>
+#include <assert.h>
+#include <iostream>
 
 VulkanRenderer::VulkanRenderer() { }
 VulkanRenderer::~VulkanRenderer() { }
@@ -65,6 +65,17 @@ Technique* VulkanRenderer::makeTechnique(Material* m, RenderState* r)
 	return &t;	// bad
 }
 
+/* Check if a mode is available in the list*/
+template<class T>
+bool hasMode(int mode, T *mode_list, size_t list_len)
+{
+	for (size_t i = 0; i < list_len; i++)
+	{
+		if (mode_list[i] == mode)
+			return true;
+	}
+	return false;
+}
 
 int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 {
@@ -89,7 +100,7 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 	instanceCreateInfo.enabledExtensionCount = 3;
 	instanceCreateInfo.ppEnabledExtensionNames = enabledExtensions;
 
-	VkResult result = vkCreateInstance(&instanceCreateInfo, nullptr, &vulkanInstance);
+	VkResult result = vkCreateInstance(&instanceCreateInfo, nullptr, &instance);
 
 	if (result != VK_SUCCESS)
 		throw "Failed to create Vulkan instance";
@@ -98,11 +109,11 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 	uint32_t numPhysicalDevices = 0;
 
 	// Ask for number of devices by setting last parameter to nullptr
-	vkEnumeratePhysicalDevices(vulkanInstance, &numPhysicalDevices, nullptr);
+	vkEnumeratePhysicalDevices(instance, &numPhysicalDevices, nullptr);
 	// Resize the array
 	physicalDevices.resize(numPhysicalDevices);
 	// Fill the array with physical device handles
-	vkEnumeratePhysicalDevices(vulkanInstance, &numPhysicalDevices, &physicalDevices[0]);
+	vkEnumeratePhysicalDevices(instance, &numPhysicalDevices, &physicalDevices[0]);
 
 	// Resize arrays
 	physicalDeviceProperties.resize(numPhysicalDevices);
@@ -195,20 +206,42 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 	VkPhysicalDeviceFeatures deviceFeatures = {}; // empty
 	deviceCreateInfo.pEnabledFeatures = &deviceFeatures;
 
-	// Create device
+	// Create (vulkan) device
 	vkCreateDevice(physicalDevices[chosenPhysicalDevice], &deviceCreateInfo, nullptr, &device);
 
-	// create window
-	glfwInit();
-	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-	window = glfwCreateWindow(width, height, "Vulkan", nullptr, nullptr);
-	glfwSetWindowUserPointer(window, this);
-	glfwCreateWindowSurface(vulkanInstance, window, nullptr, &windowSurface);
+	// Initiate SDL
+	if (SDL_Init(SDL_INIT_EVERYTHING) != 0)
+	{
+		fprintf(stderr, "%s", SDL_GetError());
+		exit(-1);
+	}
+	
+	// Create window
+	window = SDL_CreateWindow("Vulkan", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height, SDL_WINDOW_SHOWN);
+
+	// Get the window version
+	SDL_SysWMinfo info;
+	SDL_VERSION(&info.version);
+	assert(SDL_GetWindowWMInfo(window, &info) == SDL_TRUE);
+
+	// Utilize version to create the window surface
+	VkWin32SurfaceCreateInfoKHR w32sci = {};
+	w32sci.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
+	w32sci.pNext = NULL;
+	w32sci.hinstance = GetModuleHandle(NULL);
+	w32sci.hwnd = info.info.win.window;
+	assert(
+		vkCreateWin32SurfaceKHR(
+			instance,
+			&w32sci,
+			nullptr,
+			&windowSurface)
+		== VK_SUCCESS);
 
 	// Check that queue supports presenting
 	VkBool32 presentingSupported;
 	vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevices[chosenPhysicalDevice], chosenQueueFamily, windowSurface, &presentingSupported);
-	
+
 	VkSurfaceCapabilitiesKHR surfaceCapabilities;
 	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevices[chosenPhysicalDevice], windowSurface, &surfaceCapabilities);
 
@@ -234,7 +267,33 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 	swapchainCreateInfo.minImageCount = surfaceCapabilities.minImageCount;
 	swapchainCreateInfo.imageFormat = formats[0].format;	// Just select the first available format
 	swapchainCreateInfo.imageColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
-	
+
+	// Find available present modes of the device
+	VkPresentModeKHR presentModes[8];
+	uint32_t presentModeCount = 8;
+	VkResult err = vkGetPhysicalDeviceSurfacePresentModesKHR(
+		physicalDevices[chosenPhysicalDevice],
+		windowSurface,
+		&presentModeCount,
+		presentModes);
+	assert(err == VK_SUCCESS);
+#ifdef DEBUG
+	// Output present modes:
+	std::cout << presentModeCount << " present mode";
+	if (presentModeCount != 1) std::cout << 's';
+	std::cout << '\n';
+	for (size_t i = 0; i < presentModeCount - 1; i++)
+		std::cout << presentModes[i] << ", ";
+	std::cout << presentModes[presentModeCount - 1] << "\n";
+#endif
+
+	// Find an acceptable present mode
+	VkPresentModeKHR presentMode;
+	if (hasMode(VK_PRESENT_MODE_IMMEDIATE_KHR, presentModes, presentModeCount))
+		presentMode = VK_PRESENT_MODE_IMMEDIATE_KHR;
+	else
+		presentMode = presentModes[0];
+
 	VkExtent2D swapchainExtent;
 	swapchainExtent.height = height;
 	swapchainExtent.width = width;
@@ -244,7 +303,7 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 	swapchainCreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	swapchainCreateInfo.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
 	swapchainCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-	swapchainCreateInfo.presentMode = VK_PRESENT_MODE_IMMEDIATE_KHR; // vkGetPhysicalDeviceSurfacePresentModesKHR(...) should be called to check valid present modes
+	swapchainCreateInfo.presentMode = presentMode;
 	swapchainCreateInfo.clipped = VK_FALSE;
 	swapchainCreateInfo.oldSwapchain = NULL;
 
@@ -275,6 +334,9 @@ void VulkanRenderer::present()
 }
 int VulkanRenderer::shutdown()
 {
+	vkDestroyInstance(instance, nullptr);
+	SDL_DestroyWindow(window);
+	SDL_Quit();
 	return 0;	// temp
 }
 

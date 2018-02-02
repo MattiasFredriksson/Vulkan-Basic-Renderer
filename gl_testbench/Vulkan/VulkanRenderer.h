@@ -3,18 +3,17 @@
 #include "../Renderer.h"
 
 #define VK_VERSION_1_0
+#define VK_USE_PLATFORM_WIN32_KHR
+#include "vulkan\vulkan.h"
 
 #include <SDL.h>
 #include <GL/glew.h>
-#define GLFW_INCLUDE_VULKAN
-#include <glfw3.h>
 
 #pragma comment(lib, "vulkan-1.lib")
 #pragma comment(lib,"glew32.lib")
 #pragma comment(lib,"SDL2.lib")
 #pragma comment(lib,"SDL2main.lib")
 
-#include "vulkan\vulkan.h"
 
 class VulkanRenderer : public Renderer
 {
@@ -46,7 +45,7 @@ public:
 	void frame();
 
 private:
-	VkInstance vulkanInstance;
+	VkInstance instance;
 	std::vector<VkPhysicalDevice> physicalDevices;									// Holds handles to the physical devices detected
 	std::vector<VkPhysicalDeviceProperties> physicalDeviceProperties;				// Holds properties of corresponding physical device in physicalDevices
 	std::vector<VkPhysicalDeviceFeatures> physicalDeviceFeatures;					// Holds features of corresponding physical device in physicalDevices
@@ -55,7 +54,7 @@ private:
 
 	VkDevice device;
 
-	GLFWwindow* window;
+	SDL_Window* window;
 
 	VkSurfaceKHR windowSurface;
 	VkSwapchainKHR swapchain;
