@@ -304,7 +304,7 @@ int main(int argc, char *argv[])
 	renderer->initialize(800,600);
 	renderer->setWinTitle("Vulkan");
 	renderer->setClearColor(0.0, 0.1, 0.1, 1.0);
-	//initialiseTestbench();
+	initialiseTestbench();
 	run();
 	shutdown();
 	return 0;

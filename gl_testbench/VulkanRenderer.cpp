@@ -18,33 +18,30 @@ VulkanRenderer::~VulkanRenderer() { }
 
 Material* VulkanRenderer::makeMaterial(const std::string& name)
 {
-	MaterialVulkan m("m");
-	return &m;	// bad
+	return (Material*) new MaterialVulkan(name);
 }
 Mesh* VulkanRenderer::makeMesh()
 {
-	MeshVulkan m = MeshVulkan();
-	return &m;	// bad
+	return (Mesh*) new MeshVulkan();
 }
 VertexBuffer* VulkanRenderer::makeVertexBuffer(size_t size, VertexBuffer::DATA_USAGE usage)
 {
-	VertexBufferVulkan v(1, VertexBuffer::DATA_USAGE::DONTCARE);
-	return &v;	// bad
+	return (VertexBuffer*) new VertexBufferVulkan(1, VertexBuffer::DATA_USAGE::DONTCARE);
 }
 Texture2D* VulkanRenderer::makeTexture2D()
 {
-	Texture2DVulkan t;
-	return &t;	// bad
+	return (Texture2D*) new Texture2DVulkan();
 }
 Sampler2D* VulkanRenderer::makeSampler2D()
 {
-	Sampler2DVulkan s;
-	return &s;	// bad
+	return (Sampler2D*) new Sampler2DVulkan();
 }
 RenderState* VulkanRenderer::makeRenderState()
 {
-	RenderStateVulkan r;
-	return &r;	// bad
+	RenderStateVulkan* newRS = new RenderStateVulkan();
+	newRS->setGlobalWireFrame(&this->globalWireframeMode);
+	newRS->setWireFrame(false);
+	return (RenderState*)newRS;
 }
 std::string VulkanRenderer::getShaderPath()
 {
@@ -56,13 +53,11 @@ std::string VulkanRenderer::getShaderExtension()
 }
 ConstantBuffer* VulkanRenderer::makeConstantBuffer(std::string NAME, unsigned int location)
 {
-	ConstantBufferVulkan c("temp", 0);
-	return &c;	// bad
+	return (ConstantBuffer*) new ConstantBufferVulkan(NAME, location);
 }
 Technique* VulkanRenderer::makeTechnique(Material* m, RenderState* r)
 {
-	Technique t(m, r);
-	return &t;	// bad
+	return (Technique*) new Technique(m, r);
 }
 
 /* Check if a mode is available in the list*/

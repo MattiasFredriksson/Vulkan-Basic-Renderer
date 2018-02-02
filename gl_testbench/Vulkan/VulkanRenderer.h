@@ -54,6 +54,8 @@ private:
 
 	VkDevice device;
 
+	bool globalWireframeMode = false;
+
 	SDL_Window* window;
 
 	VkSurfaceKHR windowSurface;
