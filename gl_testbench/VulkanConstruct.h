@@ -3,8 +3,8 @@
 #include "vulkan\vulkan.h"
 #include <assert.h>
 
-#define QUERY_ALLOC_RESULT(result, fn, vec, ...) { unsigned int count=0; fn(__VA_ARGS__, &count, nullptr); vec.resize(count); result = fn(__VA_ARGS__, &count, vec.data()); assert(result == VK_SUCCESS); }
-#define QUERY_ALLOC(fn, vec, ...) { unsigned int count=0; fn(__VA_ARGS__, &count, nullptr); vec.resize(count); fn(__VA_ARGS__, &count, vec.data()); }
+#define ALLOC_QUERY(fn, vec, ...) { unsigned int count=0; fn(__VA_ARGS__, &count, nullptr); vec.resize(count); fn(__VA_ARGS__, &count, vec.data()); }
+#define ALLOC_QUERY_ASSERT(result, fn, vec, ...) { unsigned int count=0; fn(__VA_ARGS__, &count, nullptr); vec.resize(count); result = fn(__VA_ARGS__, &count, vec.data()); assert(result == VK_SUCCESS); }
 
 #define VULKAN_DEVICE_IMPLEMENTATION
 #ifdef VULKAN_DEVICE_IMPLEMENTATION
@@ -23,6 +23,7 @@ bool hasMode(int mode, T *mode_list, size_t list_len)
 	}
 	return false;
 }
+/* Check if the flags are set in the property. */
 template<class T>
 bool hasFlag(T property, T flags)
 {
@@ -34,7 +35,7 @@ VkPresentModeKHR chooseSwapPresentMode(VkPhysicalDevice &device, VkSurfaceKHR &s
 	// Find available present modes of the device
 	std::vector<VkPresentModeKHR> presentModes;
 	VkResult err;
-	QUERY_ALLOC_RESULT(err, vkGetPhysicalDeviceSurfacePresentModesKHR, presentModes, device, surface);
+	ALLOC_QUERY_ASSERT(err, vkGetPhysicalDeviceSurfacePresentModesKHR, presentModes, device, surface);
 #ifdef DEBUG
 	// Output present modes:
 	std::cout << presentModes.size() << " present mode(s)\n";
@@ -59,7 +60,7 @@ VkPresentModeKHR chooseSwapPresentMode(VkPhysicalDevice &device, VkSurfaceKHR &s
 int chooseQueueFamily(VkPhysicalDevice &device, VkQueueFlags* pref_queueFlag, int num_flag)
 {
 	std::vector<VkQueueFamilyProperties> queueFamilyProperties;		// Holds queue properties of corresponding physical device in physicalDevices
-	QUERY_ALLOC(vkGetPhysicalDeviceQueueFamilyProperties, queueFamilyProperties, device)
+	ALLOC_QUERY(vkGetPhysicalDeviceQueueFamilyProperties, queueFamilyProperties, device)
 
 	//Find queue matching the queue flags:
 	for (int f = 0; f < num_flag; f++)
@@ -112,7 +113,7 @@ VkPhysicalDevice choosePhysicalDevice(VkInstance &instance)
 		vkGetPhysicalDeviceFeatures(physicalDevices[i], &physicalDeviceFeatures[i]);
 		vkGetPhysicalDeviceMemoryProperties(physicalDevices[i], &physicalDeviceMemoryProperties[i]);
 
-		QUERY_ALLOC(vkGetPhysicalDeviceQueueFamilyProperties, physicalDeviceQueueFamilyProperties[i], physicalDevices[i])
+		ALLOC_QUERY(vkGetPhysicalDeviceQueueFamilyProperties, physicalDeviceQueueFamilyProperties[i], physicalDevices[i])
 	}
 
 	int chosenPhysicalDevice = -1;

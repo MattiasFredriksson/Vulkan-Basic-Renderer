@@ -66,7 +66,9 @@ Technique* VulkanRenderer::makeTechnique(Material* m, RenderState* r)
 
 int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 {
-	// Create Vulkan instance
+	/* Create Vulkan instance
+	*/
+
 	VkApplicationInfo applicationInfo = {};
 	applicationInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
 	applicationInfo.pNext = nullptr;
@@ -87,14 +89,15 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 	instanceCreateInfo.enabledExtensionCount = 3;
 	instanceCreateInfo.ppEnabledExtensionNames = enabledExtensions;
 
+	// Create instance
 	VkResult result = vkCreateInstance(&instanceCreateInfo, nullptr, &instance);
-
 	if (result != VK_SUCCESS)
 		throw "Failed to create Vulkan instance";
 
 	VkPhysicalDevice physicalDevice = choosePhysicalDevice(instance);
 
-	// Create logical device
+	/* Create logical device
+	*/
 
 	// Find a suitable queue family
 	VkQueueFlags prefQueueFlag[] =
@@ -136,6 +139,9 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 	// Create (vulkan) device
 	vkCreateDevice(physicalDevice, &deviceCreateInfo, nullptr, &device);
 
+	/* Create window
+	*/
+
 	// Initiate SDL
 	if (SDL_Init(SDL_INIT_EVERYTHING) != 0)
 	{
@@ -145,6 +151,9 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 	
 	// Create window
 	window = SDL_CreateWindow("Vulkan", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height, SDL_WINDOW_SHOWN);
+
+	/* Create window surface
+	*/
 
 	// Get the window version
 	SDL_SysWMinfo info;
@@ -165,6 +174,9 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 			&windowSurface)
 		== VK_SUCCESS);
 
+	/* Create swap chain
+	*/
+
 	// Check that queue supports presenting
 	VkBool32 presentingSupported;
 	vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, chosenQueueFamily, windowSurface, &presentingSupported);
@@ -176,14 +188,18 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 		throw "The selected queue does not support presenting. Do more programming >:|";
 
 	// Get supported formats
-	uint32_t numFormats;
 	std::vector<VkSurfaceFormatKHR> formats;
-	// Get number of formats
-	vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, windowSurface, &numFormats, nullptr);
-	// Resize array
-	formats.resize(numFormats);
-	// Finally, get the supported formats
-	vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, windowSurface, &numFormats, &formats[0]);
+	ALLOC_QUERY_ASSERT(result, vkGetPhysicalDeviceSurfaceFormatsKHR, formats, physicalDevice, windowSurface)
+
+	// Choose the mode for the swap chain that determines how the frame buffers are swapped.
+	VkPresentModeKHR presentModePref[] =
+	{
+#ifdef NO_VSYNC
+		VK_PRESENT_MODE_IMMEDIATE_KHR,// Immediately presents images to screen
+#endif
+		VK_PRESENT_MODE_MAILBOX_KHR
+	};
+	VkPresentModeKHR presentMode = chooseSwapPresentMode(physicalDevice, windowSurface, presentModePref, sizeof(presentModePref) / sizeof(VkPresentModeKHR));
 
 	// Create swap chain
 	VkSwapchainCreateInfoKHR swapchainCreateInfo = {};
@@ -194,15 +210,6 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 	swapchainCreateInfo.minImageCount = surfaceCapabilities.minImageCount;
 	swapchainCreateInfo.imageFormat = formats[0].format;	// Just select the first available format
 	swapchainCreateInfo.imageColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
-
-	VkPresentModeKHR presentModePref[] =
-	{
-#ifdef NO_VSYNC
-		VK_PRESENT_MODE_IMMEDIATE_KHR,// Immediately presents images to screen
-#endif
-		VK_PRESENT_MODE_MAILBOX_KHR
-	};
-	VkPresentModeKHR presentMode = chooseSwapPresentMode(physicalDevice, windowSurface, presentModePref, sizeof(presentModePref)/sizeof(VkPresentModeKHR));
 	VkExtent2D swapchainExtent;
 	swapchainExtent.height = height;
 	swapchainExtent.width = width;
@@ -221,13 +228,7 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 		throw "Failed to create swapchain";
 
 	// Aquire the swapchain images
-	uint32_t numSwapchainImages;
-	// First ask for number of images
-	vkGetSwapchainImagesKHR(device, swapchain, &numSwapchainImages, nullptr);
-	// Resize array
-	swapchainImages.resize(numSwapchainImages);
-	// Get the images
-	result = vkGetSwapchainImagesKHR(device, swapchain, &numSwapchainImages, &swapchainImages[0]);
+	ALLOC_QUERY_ASSERT(result, vkGetSwapchainImagesKHR, swapchainImages, device, swapchain);
 	if (result != VK_SUCCESS)
 		throw "Failed to get swapchain images";
 
