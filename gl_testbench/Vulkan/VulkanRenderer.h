@@ -2,7 +2,6 @@
 
 #include "../Renderer.h"
 
-#define VK_VERSION_1_0
 #define VK_USE_PLATFORM_WIN32_KHR
 #include "vulkan\vulkan.h"
 
@@ -46,11 +45,6 @@ public:
 
 private:
 	VkInstance instance;
-	std::vector<VkPhysicalDevice> physicalDevices;									// Holds handles to the physical devices detected
-	std::vector<VkPhysicalDeviceProperties> physicalDeviceProperties;				// Holds properties of corresponding physical device in physicalDevices
-	std::vector<VkPhysicalDeviceFeatures> physicalDeviceFeatures;					// Holds features of corresponding physical device in physicalDevices
-	std::vector<VkPhysicalDeviceMemoryProperties> physicalDeviceMemoryProperties;	// Holds memory properties of corresponding physical device in physicalDevices
-	std::vector<std::vector<VkQueueFamilyProperties>> physicalDeviceQueueFamilyProperties;		// Holds queue properties of corresponding physical device in physicalDevices
 
 	VkDevice device;
 
@@ -63,6 +57,5 @@ private:
 
 	std::vector<VkImage> swapchainImages;	// Array of images in the swapchain, use vkAquireNextImageKHR(...) to aquire image for drawing to
 
-	int chosenPhysicalDevice;
 };
 

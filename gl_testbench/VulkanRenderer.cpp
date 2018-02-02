@@ -13,6 +13,10 @@
 #include <assert.h>
 #include <iostream>
 
+#include "VulkanConstruct.h"
+
+
+
 VulkanRenderer::VulkanRenderer() { }
 VulkanRenderer::~VulkanRenderer() { }
 
@@ -60,18 +64,6 @@ Technique* VulkanRenderer::makeTechnique(Material* m, RenderState* r)
 	return (Technique*) new Technique(m, r);
 }
 
-/* Check if a mode is available in the list*/
-template<class T>
-bool hasMode(int mode, T *mode_list, size_t list_len)
-{
-	for (size_t i = 0; i < list_len; i++)
-	{
-		if (mode_list[i] == mode)
-			return true;
-	}
-	return false;
-}
-
 int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 {
 	// Create Vulkan instance
@@ -100,76 +92,16 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 	if (result != VK_SUCCESS)
 		throw "Failed to create Vulkan instance";
 
-	// Find a physical device suitable for rendering
-	uint32_t numPhysicalDevices = 0;
-
-	// Ask for number of devices by setting last parameter to nullptr
-	vkEnumeratePhysicalDevices(instance, &numPhysicalDevices, nullptr);
-	// Resize the array
-	physicalDevices.resize(numPhysicalDevices);
-	// Fill the array with physical device handles
-	vkEnumeratePhysicalDevices(instance, &numPhysicalDevices, &physicalDevices[0]);
-
-	// Resize arrays
-	physicalDeviceProperties.resize(numPhysicalDevices);
-	physicalDeviceFeatures.resize(numPhysicalDevices);
-	physicalDeviceMemoryProperties.resize(numPhysicalDevices);
-	physicalDeviceQueueFamilyProperties.resize(numPhysicalDevices);
-	// Fill the array
-	for (uint32_t i = 0; i < numPhysicalDevices; ++i)
-	{
-		vkGetPhysicalDeviceProperties(physicalDevices[i], &physicalDeviceProperties[i]);
-		vkGetPhysicalDeviceFeatures(physicalDevices[i], &physicalDeviceFeatures[i]);
-		vkGetPhysicalDeviceMemoryProperties(physicalDevices[i], &physicalDeviceMemoryProperties[i]);
-
-		// Ask for number of queues on the device and resize the array
-		uint32_t numQueues = 0;
-		vkGetPhysicalDeviceQueueFamilyProperties(physicalDevices[i], &numQueues, nullptr);
-		physicalDeviceQueueFamilyProperties[i].resize(numQueues);
-
-		// Get queue info
-		vkGetPhysicalDeviceQueueFamilyProperties(physicalDevices[i], &numQueues, &physicalDeviceQueueFamilyProperties[i][0]);
-	}
-
-	chosenPhysicalDevice = -1;
-
-	// Check for a discrete GPU
-	for (uint32_t i = 0; i < numPhysicalDevices; ++i)
-		if (physicalDeviceProperties[i].deviceType == VkPhysicalDeviceType::VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
-		{
-			chosenPhysicalDevice = i;
-			break;
-		}
-
-	// Then, if no discrete GPU was found, check for an integrated GPU
-	if (chosenPhysicalDevice == -1)
-		for (uint32_t i = 0; i < numPhysicalDevices; ++i)
-			if (physicalDeviceProperties[i].deviceType == VkPhysicalDeviceType::VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU)
-			{
-				chosenPhysicalDevice = i;
-				break;
-			}
-	
-	// If no GPU has been found, throw error
-	if (chosenPhysicalDevice == -1)
-		throw "No discrete or integrated GPU found";
+	VkPhysicalDevice physicalDevice = choosePhysicalDevice(instance);
 
 	// Create logical device
 
-	// First attempt to find a queue family supporting both transfer and graphics commands
-	int chosenQueueFamily = -1;
-	for (uint32_t i = 0; i < physicalDeviceQueueFamilyProperties[chosenPhysicalDevice].size(); ++i)
+	// Find a suitable queue family
+	VkQueueFlags prefQueueFlag[] =
 	{
-		if ((physicalDeviceQueueFamilyProperties[chosenPhysicalDevice][i].queueFlags & VK_QUEUE_TRANSFER_BIT) &&
-			(physicalDeviceQueueFamilyProperties[chosenPhysicalDevice][i].queueFlags & VK_QUEUE_GRAPHICS_BIT))
-		{
-			chosenQueueFamily = i;
-			break;
-		}
-	}
-
-	if (chosenQueueFamily == -1)
-		throw "No simple queue solution found. Do more programming >:|";
+		(VK_QUEUE_TRANSFER_BIT | VK_QUEUE_GRAPHICS_BIT)
+	};
+	int chosenQueueFamily = chooseQueueFamily(physicalDevice, prefQueueFlag, sizeof(prefQueueFlag) / sizeof(VkQueueFlags));
 
 	// Info on queues
 	VkDeviceQueueCreateInfo queueCreateInfo = {};
@@ -202,7 +134,7 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 	deviceCreateInfo.pEnabledFeatures = &deviceFeatures;
 
 	// Create (vulkan) device
-	vkCreateDevice(physicalDevices[chosenPhysicalDevice], &deviceCreateInfo, nullptr, &device);
+	vkCreateDevice(physicalDevice, &deviceCreateInfo, nullptr, &device);
 
 	// Initiate SDL
 	if (SDL_Init(SDL_INIT_EVERYTHING) != 0)
@@ -235,10 +167,10 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 
 	// Check that queue supports presenting
 	VkBool32 presentingSupported;
-	vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevices[chosenPhysicalDevice], chosenQueueFamily, windowSurface, &presentingSupported);
+	vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, chosenQueueFamily, windowSurface, &presentingSupported);
 
 	VkSurfaceCapabilitiesKHR surfaceCapabilities;
-	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevices[chosenPhysicalDevice], windowSurface, &surfaceCapabilities);
+	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, windowSurface, &surfaceCapabilities);
 
 	if (presentingSupported == VK_FALSE)
 		throw "The selected queue does not support presenting. Do more programming >:|";
@@ -247,11 +179,11 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 	uint32_t numFormats;
 	std::vector<VkSurfaceFormatKHR> formats;
 	// Get number of formats
-	vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevices[chosenPhysicalDevice], windowSurface, &numFormats, nullptr);
+	vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, windowSurface, &numFormats, nullptr);
 	// Resize array
 	formats.resize(numFormats);
 	// Finally, get the supported formats
-	vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevices[chosenPhysicalDevice], windowSurface, &numFormats, &formats[0]);
+	vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, windowSurface, &numFormats, &formats[0]);
 
 	// Create swap chain
 	VkSwapchainCreateInfoKHR swapchainCreateInfo = {};
@@ -263,32 +195,14 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 	swapchainCreateInfo.imageFormat = formats[0].format;	// Just select the first available format
 	swapchainCreateInfo.imageColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
 
-	// Find available present modes of the device
-	VkPresentModeKHR presentModes[8];
-	uint32_t presentModeCount = 8;
-	VkResult err = vkGetPhysicalDeviceSurfacePresentModesKHR(
-		physicalDevices[chosenPhysicalDevice],
-		windowSurface,
-		&presentModeCount,
-		presentModes);
-	assert(err == VK_SUCCESS);
-#ifdef DEBUG
-	// Output present modes:
-	std::cout << presentModeCount << " present mode";
-	if (presentModeCount != 1) std::cout << 's';
-	std::cout << '\n';
-	for (size_t i = 0; i < presentModeCount - 1; i++)
-		std::cout << presentModes[i] << ", ";
-	std::cout << presentModes[presentModeCount - 1] << "\n";
+	VkPresentModeKHR presentModePref[] =
+	{
+#ifdef NO_VSYNC
+		VK_PRESENT_MODE_IMMEDIATE_KHR,// Immediately presents images to screen
 #endif
-
-	// Find an acceptable present mode
-	VkPresentModeKHR presentMode;
-	if (hasMode(VK_PRESENT_MODE_IMMEDIATE_KHR, presentModes, presentModeCount))
-		presentMode = VK_PRESENT_MODE_IMMEDIATE_KHR;
-	else
-		presentMode = presentModes[0];
-
+		VK_PRESENT_MODE_MAILBOX_KHR
+	};
+	VkPresentModeKHR presentMode = chooseSwapPresentMode(physicalDevice, windowSurface, presentModePref, sizeof(presentModePref)/sizeof(VkPresentModeKHR));
 	VkExtent2D swapchainExtent;
 	swapchainExtent.height = height;
 	swapchainExtent.width = width;
@@ -318,6 +232,7 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 		throw "Failed to get swapchain images";
 
 	// assign queues/command buffers??
+	return 0;
 }
 void VulkanRenderer::setWinTitle(const char* title)
 {

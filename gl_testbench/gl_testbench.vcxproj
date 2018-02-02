@@ -214,6 +214,7 @@
     <ClInclude Include="Technique.h" />
     <ClInclude Include="Texture2D.h" />
     <ClInclude Include="Transform.h" />
+    <ClInclude Include="VulkanConstruct.h" />
     <ClInclude Include="Vulkan\ConstantBufferVulkan.h" />
     <ClInclude Include="Vulkan\MaterialVulkan.h" />
     <ClInclude Include="Vulkan\MeshVulkan.h" />
