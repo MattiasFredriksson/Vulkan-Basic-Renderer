@@ -134,8 +134,9 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 	/* Create physical device
 	*/
 
+	VkQueueFlags queueSupport = (VK_QUEUE_TRANSFER_BIT | VK_QUEUE_GRAPHICS_BIT);
 	VkPhysicalDevice physicalDevice;
-	int chosenPhysicalDevice = choosePhysicalDevice(instance, vk::specifyAnyDedicatedDevice, physicalDevice);
+	int chosenPhysicalDevice = choosePhysicalDevice(instance, windowSurface, vk::specifyAnyDedicatedDevice, queueSupport, physicalDevice);
 	if (chosenPhysicalDevice < 0)
 		throw std::runtime_error("No available physical device matched specification.");
 
@@ -147,7 +148,7 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 	{
 		(VK_QUEUE_TRANSFER_BIT | VK_QUEUE_GRAPHICS_BIT)
 	};
-	int chosenQueueFamily = chooseQueueFamily(physicalDevice, prefQueueFlag, sizeof(prefQueueFlag) / sizeof(VkQueueFlags));
+	int chosenQueueFamily = pickQueueFamily(physicalDevice, prefQueueFlag, sizeof(prefQueueFlag) / sizeof(VkQueueFlags));
 
 	// Info on queues
 	VkDeviceQueueCreateInfo queueCreateInfo = {};

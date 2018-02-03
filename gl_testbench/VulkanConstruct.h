@@ -30,6 +30,18 @@ bool hasFlag(T property, T flags)
 {
 	return (property & flags) == flags;
 }
+/* Find if the flags are equal. */
+template<class T>
+bool matchFlag(T property, T flags)
+{
+	return property == flags;
+}
+/* Unset bit in the flag. */
+template<class T>
+T rmvFlag(T property, T rmv)
+{
+	return property & ~rmv;
+}
 
 VkPresentModeKHR chooseSwapPresentMode(VkPhysicalDevice &device, VkSurfaceKHR &surface, VkPresentModeKHR *prefered_modes, size_t num_prefered) {
 
@@ -55,9 +67,9 @@ VkPresentModeKHR chooseSwapPresentMode(VkPhysicalDevice &device, VkSurfaceKHR &s
 	return VK_PRESENT_MODE_FIFO_KHR;
 }
 
-/* Choose a suitable queue family from by matching with the queue flag properties.
+/* Find any queue family supporting the specific queue preferences.
 */
-int chooseQueueFamily(VkPhysicalDevice &device, VkQueueFlags* pref_queueFlag, int num_flag)
+int anyQueueFamily(VkPhysicalDevice &device, VkQueueFlags* pref_queueFlag, int num_flag)
 {
 	std::vector<VkQueueFamilyProperties> queueFamilyProperties;		// Holds queue properties of corresponding physical device in physicalDevices
 	ALLOC_QUERY(vkGetPhysicalDeviceQueueFamilyProperties, queueFamilyProperties, device);
@@ -75,9 +87,50 @@ int chooseQueueFamily(VkPhysicalDevice &device, VkQueueFlags* pref_queueFlag, in
 			}
 		}
 	}
-
 	// No matching queue found
 	return -1;
+}
+/* Find a queue family that exactly matches one of the preferences.
+*/
+int matchQueueFamily(VkPhysicalDevice &device, VkQueueFlags* pref_queueFlag, int num_flag)
+{
+	std::vector<VkQueueFamilyProperties> queueFamilyProperties;		// Holds queue properties of corresponding physical device in physicalDevices
+	ALLOC_QUERY(vkGetPhysicalDeviceQueueFamilyProperties, queueFamilyProperties, device);
+
+	//Find queue matching the queue flags:
+	for (int f = 0; f < num_flag; f++)
+	{
+		VkQueueFlags flag = pref_queueFlag[f];
+		for (uint32_t i = 0; i < queueFamilyProperties.size(); ++i)
+		{
+			if (matchFlag(queueFamilyProperties[i].queueFlags, flag))
+			{
+				// Match with other properties ..?
+				return i;
+			}
+		}
+	}
+	// No matching queue found
+	return -1;
+}
+
+
+int pickQueueFamily(VkPhysicalDevice &device, VkQueueFlags* pref_queueFlag, int num_flag)
+{
+	int family = matchQueueFamily(device, pref_queueFlag, num_flag);
+	if (family > -1)
+		return family;
+	return anyQueueFamily(device, pref_queueFlag, num_flag);
+}
+
+/* Check if there are a combination of queue families that supports all requested features. 
+ * (does not guarantee support combinations). Returns 0 on success.
+*/
+int noQueueFamilySupport(VkQueueFlags feature, VkQueueFamilyProperties *family_list, size_t list_len)
+{
+	for (uint32_t i = 0; i < list_len; ++i)
+		feature = rmvFlag(feature, family_list[i].queueFlags);
+	return feature;
 }
 
 namespace vk
@@ -98,12 +151,13 @@ namespace vk
 }
 
 /* Abstract device selection function using a ranking function to select device. 
-instance	<<	Vulkan instance
-deviceSpec	<<	Ranking function of available physical devices used to determine a suitable device.
-result		>>	Selected device
-return		>>	Positive: index of the related device, Negative: Error code
+instance		<<	Vulkan instance
+deviceSpec		<<	Ranking function of available physical devices used to determine a suitable device.
+queueSupportReq	<<	Flag verifying that (to be) ranked devices supports a set of queue families.  
+result			>>	Selected device
+return			>>	Positive: index of the related device, Negative: Error code
 */
-int choosePhysicalDevice(VkInstance &instance, vk::isDeviceSuitable deviceSpec, VkPhysicalDevice &result)
+int choosePhysicalDevice(VkInstance &instance, VkSurfaceKHR &surface, vk::isDeviceSuitable deviceSpec, VkQueueFlags queueSupportReq, VkPhysicalDevice &result)
 {
 	// Handles to the physical devices detected
 	std::vector<VkPhysicalDevice> physicalDevices;
@@ -132,6 +186,18 @@ int choosePhysicalDevice(VkInstance &instance, vk::isDeviceSuitable deviceSpec, 
 		vkGetPhysicalDeviceFeatures(physicalDevices[i], &feature);										// Holds features of corresponding physical device in physicalDevices
 		vkGetPhysicalDeviceMemoryProperties(physicalDevices[i], &memProperty);							// Holds memory properties of corresponding physical device in physicalDevices
 		ALLOC_QUERY(vkGetPhysicalDeviceQueueFamilyProperties, familyProperty, physicalDevices[i]);		// Holds queue properties of corresponding physical device in physicalDevices
+
+		// Ensure the device can support specific queue families (and thus related operations)
+		if (noQueueFamilySupport(queueSupportReq, familyProperty.data(), familyProperty.size()))
+			continue;
+
+		// Ensure the device can present on the specific surface (it is physically connected to the screen?).
+		VkBool32 presentSupport = false;
+		VkResult err = vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevices[i], i, surface, &presentSupport);
+		assert(err == VK_SUCCESS);
+		if(!presentSupport)
+			continue;
+
 		// Find suitable device
 		int rank = deviceSpec(physicalDevices[i], property, feature, familyProperty.data(), familyProperty.size());
 		if (rank > 0)
