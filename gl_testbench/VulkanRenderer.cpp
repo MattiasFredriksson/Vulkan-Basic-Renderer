@@ -92,9 +92,52 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 	// Create instance
 	VkResult result = vkCreateInstance(&instanceCreateInfo, nullptr, &instance);
 	if (result != VK_SUCCESS)
-		throw "Failed to create Vulkan instance";
+		throw std::runtime_error("Failed to create Vulkan instance");
 
-	VkPhysicalDevice physicalDevice = choosePhysicalDevice(instance);
+	/* Create window
+	*/
+
+	// Initiate SDL
+	if (SDL_Init(SDL_INIT_EVERYTHING) != 0)
+	{
+		fprintf(stderr, "%s", SDL_GetError());
+		exit(-1);
+	}
+
+	// Create window
+	window = SDL_CreateWindow("Vulkan", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height, SDL_WINDOW_SHOWN);
+
+	/* Create window surface
+	Note* Surface 'must' be created before physical device creation as it influences the selection.
+	*/
+
+	// Get the window version
+	SDL_SysWMinfo info;
+	SDL_VERSION(&info.version);
+	assert(SDL_GetWindowWMInfo(window, &info) == SDL_TRUE);
+
+	// Utilize version to create the window surface
+	VkWin32SurfaceCreateInfoKHR w32sci = {};
+	w32sci.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
+	w32sci.pNext = NULL;
+	w32sci.hinstance = GetModuleHandle(NULL);
+	w32sci.hwnd = info.info.win.window;
+	assert(
+		vkCreateWin32SurfaceKHR(
+			instance,
+			&w32sci,
+			nullptr,
+			&windowSurface)
+		== VK_SUCCESS);
+
+
+	/* Create physical device
+	*/
+
+	VkPhysicalDevice physicalDevice;
+	int chosenPhysicalDevice = choosePhysicalDevice(instance, vk::specifyAnyDedicatedDevice, physicalDevice);
+	if (chosenPhysicalDevice < 0)
+		throw std::runtime_error("No available physical device matched specification.");
 
 	/* Create logical device
 	*/
@@ -139,40 +182,6 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 	// Create (vulkan) device
 	vkCreateDevice(physicalDevice, &deviceCreateInfo, nullptr, &device);
 
-	/* Create window
-	*/
-
-	// Initiate SDL
-	if (SDL_Init(SDL_INIT_EVERYTHING) != 0)
-	{
-		fprintf(stderr, "%s", SDL_GetError());
-		exit(-1);
-	}
-	
-	// Create window
-	window = SDL_CreateWindow("Vulkan", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height, SDL_WINDOW_SHOWN);
-
-	/* Create window surface
-	*/
-
-	// Get the window version
-	SDL_SysWMinfo info;
-	SDL_VERSION(&info.version);
-	assert(SDL_GetWindowWMInfo(window, &info) == SDL_TRUE);
-
-	// Utilize version to create the window surface
-	VkWin32SurfaceCreateInfoKHR w32sci = {};
-	w32sci.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
-	w32sci.pNext = NULL;
-	w32sci.hinstance = GetModuleHandle(NULL);
-	w32sci.hwnd = info.info.win.window;
-	assert(
-		vkCreateWin32SurfaceKHR(
-			instance,
-			&w32sci,
-			nullptr,
-			&windowSurface)
-		== VK_SUCCESS);
 
 	/* Create swap chain
 	*/
@@ -245,7 +254,12 @@ void VulkanRenderer::present()
 }
 int VulkanRenderer::shutdown()
 {
+	// Clean up Vulkan
+	vkDestroySwapchainKHR(device, swapchain, nullptr);
+	vkDestroySurfaceKHR(instance, windowSurface, nullptr);
+	vkDestroyDevice(device, nullptr);
 	vkDestroyInstance(instance, nullptr);
+	//Clean up SDL
 	SDL_DestroyWindow(window);
 	SDL_Quit();
 	return 0;	// temp
