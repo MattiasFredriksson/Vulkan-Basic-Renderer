@@ -7,6 +7,7 @@
 
 #include <SDL.h>
 #include <GL/glew.h>
+#include "../glm/glm.hpp"
 
 #pragma comment(lib, "vulkan-1.lib")
 #pragma comment(lib,"glew32.lib")
@@ -57,4 +58,6 @@ private:
 
 	std::vector<VkImage> swapchainImages;			// Array of images in the swapchain, use vkAquireNextImageKHR(...) to aquire image for drawing to
 	std::vector<VkImageView> swapchainImageViews;	// Image views for the swap chain images
+
+	glm::vec4 clearColor;
 };

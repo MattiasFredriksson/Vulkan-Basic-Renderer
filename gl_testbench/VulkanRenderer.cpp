@@ -272,7 +272,7 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 }
 void VulkanRenderer::setWinTitle(const char* title)
 {
-
+	SDL_SetWindowTitle(window, title);
 }
 void VulkanRenderer::present()
 {
@@ -293,7 +293,7 @@ int VulkanRenderer::shutdown()
 
 void VulkanRenderer::setClearColor(float r, float g, float b, float a)
 {
-
+	clearColor = glm::vec4{ r, g, b, a };
 }
 void VulkanRenderer::clearBuffer(unsigned int flag)
 {
