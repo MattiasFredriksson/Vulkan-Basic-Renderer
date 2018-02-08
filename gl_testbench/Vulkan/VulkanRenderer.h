@@ -55,7 +55,6 @@ private:
 	VkSurfaceKHR windowSurface;
 	VkSwapchainKHR swapchain;
 
-	std::vector<VkImage> swapchainImages;	// Array of images in the swapchain, use vkAquireNextImageKHR(...) to aquire image for drawing to
-
+	std::vector<VkImage> swapchainImages;			// Array of images in the swapchain, use vkAquireNextImageKHR(...) to aquire image for drawing to
+	std::vector<VkImageView> swapchainImageViews;	// Image views for the swap chain images
 };
-
