@@ -15,12 +15,19 @@
 #pragma comment(lib,"SDL2main.lib")
 
 // Size in bytes of the memory types used
-#define STAGING_MEMORY_SIZE 128
+#define STAGING_MEMORY_SIZE 256
 #define STORAGE_MEMORY_SIZE (1024 * 1024)
 
 class VulkanRenderer : public Renderer
 {
 public:
+	struct MemoryTypeInfo
+	{
+		bool deviceLocal;
+		bool hostVisible;
+		bool hostCoherent;
+	};
+
 	VulkanRenderer();
 	~VulkanRenderer();
 
@@ -47,7 +54,17 @@ public:
 	void submit(Mesh* mesh);
 	void frame();
 
+	VkDevice getDevice();
+
+	void setConstantBufferData(VkBuffer buffer, const void* data, size_t size, Material * m, unsigned int location);
+
 private:
+	std::vector<MemoryTypeInfo> memoryTypes;
+
+	void createStagingBuffer();
+	void updateStagingBuffer(const void* data, uint32_t size);	// Writes memory from data into the staging buffer
+	void allocateStorageMemory();	// Used during initialization to find suitable memory type for storage and allocate device memory from it
+
 	VkInstance instance;
 
 	VkDevice device;
@@ -66,4 +83,15 @@ private:
 
 	VkDeviceMemory stagingMemory;	// GPU memory allocation accessible to CPU. Used to move data from CPU to GPU
 	VkDeviceMemory storageMemory;	// GPU memory allocation used to store data.
+	uint32_t storageMemoryNextFreeOffset{ 0 };	// Offset to the next free area in the storage memory
+
+	VkBuffer stagingBuffer;			// Buffer to temporarily hold data being transferred to GPU
+	VkMemoryRequirements stagingBufferMemoryRequirement;
+
+	int chosenQueueFamily;		// The queue family to be used
+
+	VkCommandPool stagingCommandPool;	// Allocates commands used when moving data to the GPU
+	VkCommandPool drawingCommandPool;	// Allocates commands used for drawing
+
+	VkQueue queue;		// Handle to the queue used
 };

@@ -7,6 +7,11 @@ MaterialVulkan::MaterialVulkan(const std::string & name)
 
 MaterialVulkan::~MaterialVulkan()
 {
+	// Free all constant buffers
+	for (auto cb : constantBuffers)
+	{
+		delete cb.second;
+	}
 }
 
 void MaterialVulkan::setShader(const std::string & shaderFileName, ShaderType type)
@@ -29,11 +34,12 @@ int MaterialVulkan::compileMaterial(std::string & errString)
 
 void MaterialVulkan::addConstantBuffer(std::string name, unsigned int location)
 {
-	
+	constantBuffers[location] = renderer->makeConstantBuffer(name, location);
 }
 
-void MaterialVulkan::updateConstantBuffer(const void * data, size_t size, unsigned int location)
+void MaterialVulkan::updateConstantBuffer(const void* data, size_t size, unsigned int location)
 {
+	constantBuffers[location]->setData(data, size, this, location);
 }
 
 int MaterialVulkan::enable()

@@ -145,12 +145,7 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 		throw std::runtime_error("No available physical device matched specification.");
 
 	// Select the memory types to use for allocations
-	int stagingMemoryType = -1;
-	int storageMemoryType = -1;
-	selectMemoryTypes(physicalDevice, stagingMemoryType, storageMemoryType);
-
-	if (stagingMemoryType == -1 || storageMemoryType == -1)
-		throw std::runtime_error("Could not find suitable memory types.");
+	gatherMemoryInfo(physicalDevice, memoryTypes);
 
 	/* Create logical device
 	*/
@@ -160,7 +155,7 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 	{
 		(VK_QUEUE_TRANSFER_BIT | VK_QUEUE_GRAPHICS_BIT)
 	};
-	int chosenQueueFamily = pickQueueFamily(physicalDevice, prefQueueFlag, sizeof(prefQueueFlag) / sizeof(VkQueueFlags));
+	chosenQueueFamily = pickQueueFamily(physicalDevice, prefQueueFlag, sizeof(prefQueueFlag) / sizeof(VkQueueFlags));
 
 	// Info on queues
 	VkDeviceQueueCreateInfo queueCreateInfo = {};
@@ -195,21 +190,16 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 	// Create (vulkan) device
 	vkCreateDevice(physicalDevice, &deviceCreateInfo, nullptr, &device);
 
-	/* Allocate device memory
-	*/
-	VkMemoryAllocateInfo stagingInfo = {};
-	stagingInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	stagingInfo.pNext = nullptr;
-	stagingInfo.allocationSize = STAGING_MEMORY_SIZE;
-	stagingInfo.memoryTypeIndex = static_cast<uint32_t>(stagingMemoryType);
-	vkAllocateMemory(device, &stagingInfo, nullptr, &stagingMemory);
+	vkGetDeviceQueue(device, chosenQueueFamily, 0, &queue);
 
-	VkMemoryAllocateInfo storageInfo = {};
-	storageInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	storageInfo.pNext = nullptr;
-	storageInfo.allocationSize = STORAGE_MEMORY_SIZE;
-	storageInfo.memoryTypeIndex = static_cast<uint32_t>(storageMemoryType);
-	vkAllocateMemory(device, &stagingInfo, nullptr, &storageMemory);
+	createStagingBuffer();
+
+	allocateStorageMemory();
+
+	// Bind the staging buffer to its memory
+	result = vkBindBufferMemory(device, stagingBuffer, stagingMemory, 0);
+	if (result != VK_SUCCESS)
+		throw std::runtime_error("Failed to bind staging buffer to memory.");
 
 	/* Create swap chain
 	*/
@@ -295,6 +285,23 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 			throw std::runtime_error("Failed to create image view");
 	}
 
+	// Create staging command pool
+	VkCommandPoolCreateInfo commandPoolCreateInfo = {};
+	commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	commandPoolCreateInfo.pNext = nullptr;
+	commandPoolCreateInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
+	commandPoolCreateInfo.queueFamilyIndex = chosenQueueFamily;
+	result = vkCreateCommandPool(device, &commandPoolCreateInfo, nullptr, &stagingCommandPool);
+	if (result != VK_SUCCESS)
+		throw std::runtime_error("Failed to create staging command pool.");
+
+	// Create drawing command pool
+	commandPoolCreateInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+	result = vkCreateCommandPool(device, &commandPoolCreateInfo, nullptr, &drawingCommandPool);
+	if (result != VK_SUCCESS)
+		throw std::runtime_error("Failed to create staging command pool.");
+
+
 	return 0;
 }
 void VulkanRenderer::setWinTitle(const char* title)
@@ -308,6 +315,9 @@ void VulkanRenderer::present()
 int VulkanRenderer::shutdown()
 {
 	// Clean up Vulkan
+	vkDestroyCommandPool(device, drawingCommandPool, nullptr);
+	vkDestroyCommandPool(device, stagingCommandPool, nullptr);
+	vkDestroyBuffer(device, stagingBuffer, nullptr);
 	for (int i = 0; i < swapchainImageViews.size(); ++i)
 		vkDestroyImageView(device, swapchainImageViews[i], nullptr);
 	for (int i = 0; i < swapchainImages.size(); ++i)
@@ -344,4 +354,181 @@ void VulkanRenderer::submit(Mesh* mesh)
 void VulkanRenderer::frame()
 {
 
+}
+
+VkDevice VulkanRenderer::getDevice()
+{
+	return device;
+}
+
+void VulkanRenderer::setConstantBufferData(VkBuffer buffer, const void* data, size_t size, Material * m, unsigned int location)
+{
+	updateStagingBuffer(data, size);
+
+	// Adjust the memory offset to achieve proper alignment
+	VkMemoryRequirements memoryRequirements;
+	vkGetBufferMemoryRequirements(device, buffer, &memoryRequirements);
+
+	if (storageMemoryNextFreeOffset % memoryRequirements.alignment != 0)
+		storageMemoryNextFreeOffset += memoryRequirements.alignment - (storageMemoryNextFreeOffset % memoryRequirements.alignment);
+
+
+	VkResult result = vkBindBufferMemory(device, buffer, storageMemory, storageMemoryNextFreeOffset);
+	if (result != VK_SUCCESS)
+		throw std::runtime_error("Failed to bind buffer to memory.");
+
+	// Create command buffer
+	VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
+	commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	commandBufferAllocateInfo.pNext = nullptr;
+	commandBufferAllocateInfo.commandPool = stagingCommandPool;
+	commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	commandBufferAllocateInfo.commandBufferCount = 1;
+
+	VkCommandBuffer stagingCommandBuffer;
+	result = vkAllocateCommandBuffers(device, &commandBufferAllocateInfo, &stagingCommandBuffer);
+	if (result != VK_SUCCESS)
+		throw std::runtime_error("Failed to create command buffer for staging.");
+
+	// Begin recording into command buffer
+	VkCommandBufferBeginInfo commandBufferBeginInfo = {};
+	commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	commandBufferBeginInfo.pNext = nullptr;
+	commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+	commandBufferBeginInfo.pInheritanceInfo = nullptr;
+
+	result = vkBeginCommandBuffer(stagingCommandBuffer, &commandBufferBeginInfo);
+	if (result != VK_SUCCESS)
+		throw std::runtime_error("Failed to begin command buffer.");
+
+	// Record the copying command
+	VkBufferCopy bufferCopyRegion = {};
+	bufferCopyRegion.srcOffset = 0;
+	bufferCopyRegion.dstOffset = storageMemoryNextFreeOffset;
+	bufferCopyRegion.size = size;
+
+	vkCmdCopyBuffer(stagingCommandBuffer, stagingBuffer, buffer, 1, &bufferCopyRegion);
+
+	storageMemoryNextFreeOffset += size;
+
+	// End command recording
+	vkEndCommandBuffer(stagingCommandBuffer);
+
+	// Submit command buffer to queue
+	VkSubmitInfo submitInfo = {};
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submitInfo.pNext = nullptr;
+	submitInfo.waitSemaphoreCount = 0;
+	submitInfo.pWaitSemaphores = nullptr;
+	submitInfo.pWaitDstStageMask = nullptr;
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &stagingCommandBuffer;
+	submitInfo.signalSemaphoreCount = 0;
+	submitInfo.pSignalSemaphores = nullptr;
+
+	vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE);
+	vkQueueWaitIdle(queue);		// Wait until the copy is complete
+
+	vkFreeCommandBuffers(device, stagingCommandPool, 1, &stagingCommandBuffer);
+}
+
+void VulkanRenderer::createStagingBuffer()
+{
+	VkBufferCreateInfo bufferCreateInfo = {};
+	bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bufferCreateInfo.pNext = nullptr;
+	bufferCreateInfo.flags = 0;
+	bufferCreateInfo.size = STAGING_MEMORY_SIZE;
+	bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+	bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	bufferCreateInfo.queueFamilyIndexCount = 0;
+	bufferCreateInfo.pQueueFamilyIndices = nullptr;
+
+	VkResult result = vkCreateBuffer(device, &bufferCreateInfo, nullptr, &stagingBuffer);
+	if (result != VK_SUCCESS)
+		throw std::runtime_error("Failed to create staging buffer.");
+
+	vkGetBufferMemoryRequirements(device, stagingBuffer, &stagingBufferMemoryRequirement);
+
+	// Find appropriate memory type
+	int appropriateMemoryIndex = -1;
+	for (int i = 0; i < memoryTypes.size(); ++i)
+	{
+		// Memory type should be visible and coherent to host and be supported by the staging buffer
+		if (memoryTypes[i].hostVisible && memoryTypes[i].hostCoherent && ((1 << i) & stagingBufferMemoryRequirement.memoryTypeBits))
+		{
+			appropriateMemoryIndex = i;
+			break;
+		}
+	}
+
+	if (appropriateMemoryIndex == -1)
+		throw std::runtime_error("Could not find an appropriate memory type for the staging buffer.");
+
+	VkMemoryAllocateInfo stagingInfo = {};
+	stagingInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	stagingInfo.pNext = nullptr;
+	stagingInfo.allocationSize = stagingBufferMemoryRequirement.size;
+	stagingInfo.memoryTypeIndex = static_cast<uint32_t>(appropriateMemoryIndex);
+	vkAllocateMemory(device, &stagingInfo, nullptr, &stagingMemory);
+}
+
+void VulkanRenderer::updateStagingBuffer(const void* data, uint32_t size)
+{
+	if (size > STAGING_MEMORY_SIZE)
+		throw std::runtime_error("The data requested does not fit in the staging buffer.");
+
+	void* bufferContents = nullptr;
+	VkResult result = vkMapMemory(device, stagingMemory, 0, VK_WHOLE_SIZE, 0, &bufferContents);
+
+	if (result != VK_SUCCESS)
+		throw std::runtime_error("Failed to map staging buffer to memory.");
+
+	memcpy(bufferContents, data, size);
+
+	vkUnmapMemory(device, stagingMemory);
+}
+
+void VulkanRenderer::allocateStorageMemory()
+{
+	// Create a dummy buffer and query the supported memory types
+	VkBuffer buffer;
+	VkBufferCreateInfo bufferCreateInfo = {};
+	bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bufferCreateInfo.pNext = nullptr;
+	bufferCreateInfo.flags = 0;
+	bufferCreateInfo.size = 256;
+	bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+	bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	bufferCreateInfo.queueFamilyIndexCount = 0;
+	bufferCreateInfo.pQueueFamilyIndices = nullptr;
+
+	VkResult result = vkCreateBuffer(device, &bufferCreateInfo, nullptr, &buffer);
+	if (result != VK_SUCCESS)
+		throw std::runtime_error("Failed to create test constant buffer.");
+
+	VkMemoryRequirements memReq;
+	vkGetBufferMemoryRequirements(device, buffer, &memReq);
+
+	// Find appropriate memory type
+	int appropriateMemoryIndex = -1;
+	for (int i = 0; i < memoryTypes.size(); ++i)
+	{
+		// Memory type should be visible and coherent to host and be supported by the staging buffer
+		if (memoryTypes[i].deviceLocal && ((1 << i) & memReq.memoryTypeBits))
+		{
+			appropriateMemoryIndex = i;
+			break;
+		}
+	}
+
+	if (appropriateMemoryIndex == -1)
+		throw std::runtime_error("Could not find an appropriate memory type for the staging buffer.");
+
+	VkMemoryAllocateInfo storageInfo = {};
+	storageInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	storageInfo.pNext = nullptr;
+	storageInfo.allocationSize = STORAGE_MEMORY_SIZE;
+	storageInfo.memoryTypeIndex = static_cast<uint32_t>(appropriateMemoryIndex);
+	vkAllocateMemory(device, &storageInfo, nullptr, &storageMemory);
 }

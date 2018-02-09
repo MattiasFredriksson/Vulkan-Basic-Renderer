@@ -64,6 +64,7 @@ public:
 
 private:
 	VulkanRenderer* renderer;	// Pointer to the renderer that created this material
+	std::map<unsigned int, ConstantBuffer*> constantBuffers;
 };
 
 #pragma once

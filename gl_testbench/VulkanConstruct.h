@@ -3,8 +3,9 @@
 #include "vulkan\vulkan.h"
 #include <assert.h>
 #include <algorithm>
+#include "vulkan\VulkanRenderer.h"
 
-#define PRINT_MEMORY_INFO false		// Enable to write info on memory types to cout
+#define PRINT_MEMORY_INFO true		// Enable to write info on memory types to cout
 
 #define ALLOC_QUERY(fn, vec, ...) { unsigned int count=0; fn(__VA_ARGS__, &count, nullptr); vec.resize(count); fn(__VA_ARGS__, &count, vec.data()); }
 #define ALLOC_QUERY_ASSERT(result, fn, vec, ...) { unsigned int count=0; fn(__VA_ARGS__, &count, nullptr); vec.resize(count); result = fn(__VA_ARGS__, &count, vec.data()); assert(result == VK_SUCCESS); }
@@ -221,15 +222,16 @@ int choosePhysicalDevice(VkInstance &instance, VkSurfaceKHR &surface, vk::isDevi
 	return dev.index;
 }
 
-/* Selects memory types suitable as staging and storage memory
+/* Gets info on memory types for a device
 physicalDevice		<<	Vulkan device to consider
-stagingMemoryType	>>	Index of selected staging memory type
-storageMemoryType	>>	Index of selected storage memory type
+stagingMemoryType	>>	Array of memory types to be filled with information
 */
-void selectMemoryTypes(VkPhysicalDevice& physicalDevice, int& stagingMemoryType, int& storageMemoryType)
+void gatherMemoryInfo(VkPhysicalDevice& physicalDevice, std::vector<VulkanRenderer::MemoryTypeInfo>& memoryInfo)
 {
 	VkPhysicalDeviceMemoryProperties memProperty;		// Holds memory properties of selected physical device
-	vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperty);							
+	vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperty);
+
+	memoryInfo.resize(memProperty.memoryTypeCount);
 
 	if (PRINT_MEMORY_INFO)
 	{
@@ -246,13 +248,11 @@ void selectMemoryTypes(VkPhysicalDevice& physicalDevice, int& stagingMemoryType,
 
 	for (int i = 0; i < memProperty.memoryTypeCount; ++i)
 	{
-		// Device local memory is suitable for storage
-		if (memProperty.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
-			storageMemoryType = i;
+		memoryInfo[i].deviceLocal = (memProperty.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) ? true : false;
 
-		// Host visible and coherent memory is suitable for staging
-		if (memProperty.memoryTypes[i].propertyFlags & (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
-			stagingMemoryType = i;
+		memoryInfo[i].hostVisible = (memProperty.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) ? true : false;
+
+		memoryInfo[i].hostCoherent = (memProperty.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) ? true : false;
 
 		if (PRINT_MEMORY_INFO)
 		{

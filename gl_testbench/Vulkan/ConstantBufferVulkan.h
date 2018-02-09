@@ -2,6 +2,7 @@
 #include <GL/glew.h>
 #include "../ConstantBuffer.h"
 #include "VulkanRenderer.h"
+#include "vulkan\vulkan.h"
 
 class ConstantBufferVulkan : public ConstantBuffer
 {
@@ -19,5 +20,7 @@ private:
 	uint32_t location;
 
 	VkBuffer buffer;
+
+	bool bufferCreated{ false };
 };
 
