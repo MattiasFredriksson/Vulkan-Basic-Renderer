@@ -4,6 +4,8 @@
 #include <assert.h>
 #include <algorithm>
 
+#define PRINT_MEMORY_INFO false		// Enable to write info on memory types to cout
+
 #define ALLOC_QUERY(fn, vec, ...) { unsigned int count=0; fn(__VA_ARGS__, &count, nullptr); vec.resize(count); fn(__VA_ARGS__, &count, vec.data()); }
 #define ALLOC_QUERY_ASSERT(result, fn, vec, ...) { unsigned int count=0; fn(__VA_ARGS__, &count, nullptr); vec.resize(count); result = fn(__VA_ARGS__, &count, vec.data()); assert(result == VK_SUCCESS); }
 
@@ -170,7 +172,6 @@ int choosePhysicalDevice(VkInstance &instance, VkSurfaceKHR &surface, vk::isDevi
 
 	VkPhysicalDeviceProperties property;
 	VkPhysicalDeviceFeatures feature;
-	VkPhysicalDeviceMemoryProperties memProperty;
 	std::vector<VkQueueFamilyProperties> familyProperty;
 
 	struct DevPair
@@ -184,7 +185,7 @@ int choosePhysicalDevice(VkInstance &instance, VkSurfaceKHR &surface, vk::isDevi
 	{
 		vkGetPhysicalDeviceProperties(physicalDevices[i], &property);									// Holds properties of corresponding physical device in physicalDevices
 		vkGetPhysicalDeviceFeatures(physicalDevices[i], &feature);										// Holds features of corresponding physical device in physicalDevices
-		vkGetPhysicalDeviceMemoryProperties(physicalDevices[i], &memProperty);							// Holds memory properties of corresponding physical device in physicalDevices
+
 		ALLOC_QUERY(vkGetPhysicalDeviceQueueFamilyProperties, familyProperty, physicalDevices[i]);		// Holds queue properties of corresponding physical device in physicalDevices
 
 		// Ensure the device can support specific queue families (and thus related operations)
@@ -218,6 +219,60 @@ int choosePhysicalDevice(VkInstance &instance, VkSurfaceKHR &surface, vk::isDevi
 	//Return selected device
 	result = physicalDevices[dev.index];
 	return dev.index;
+}
+
+/* Selects memory types suitable as staging and storage memory
+physicalDevice		<<	Vulkan device to consider
+stagingMemoryType	>>	Index of selected staging memory type
+storageMemoryType	>>	Index of selected storage memory type
+*/
+void selectMemoryTypes(VkPhysicalDevice& physicalDevice, int& stagingMemoryType, int& storageMemoryType)
+{
+	VkPhysicalDeviceMemoryProperties memProperty;		// Holds memory properties of selected physical device
+	vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperty);							
+
+	if (PRINT_MEMORY_INFO)
+	{
+		for (int i = 0; i < memProperty.memoryHeapCount; ++i)
+		{
+
+			std::cout << "Memory heap " << i << ":\n";
+			if (memProperty.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT)
+				std::cout << "Device local\n";
+			else
+				std::cout << "Not device local\n";
+		}
+	}
+
+	for (int i = 0; i < memProperty.memoryTypeCount; ++i)
+	{
+		// Device local memory is suitable for storage
+		if (memProperty.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
+			storageMemoryType = i;
+
+		// Host visible and coherent memory is suitable for staging
+		if (memProperty.memoryTypes[i].propertyFlags & (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
+			stagingMemoryType = i;
+
+		if (PRINT_MEMORY_INFO)
+		{
+			std::cout << "Memory type " << i << ", Heap: " << memProperty.memoryTypes[i].heapIndex << "\n";
+			if (memProperty.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
+				std::cout << "Device local\n";
+			else
+				std::cout << "Not device local\n";
+
+			if (memProperty.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
+				std::cout << "Host visible\n";
+			else
+				std::cout << "Not host visible\n";
+
+			if (memProperty.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
+				std::cout << "Host coherent\n";
+			else
+				std::cout << "Not host coherent\n";
+		}
+	}
 }
 
 #endif

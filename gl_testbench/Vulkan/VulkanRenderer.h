@@ -14,6 +14,9 @@
 #pragma comment(lib,"SDL2.lib")
 #pragma comment(lib,"SDL2main.lib")
 
+// Size in bytes of the memory types used
+#define STAGING_MEMORY_SIZE 128
+#define STORAGE_MEMORY_SIZE (1024 * 1024)
 
 class VulkanRenderer : public Renderer
 {
@@ -60,4 +63,7 @@ private:
 	std::vector<VkImageView> swapchainImageViews;	// Image views for the swap chain images
 
 	glm::vec4 clearColor;
+
+	VkDeviceMemory stagingMemory;	// GPU memory allocation accessible to CPU. Used to move data from CPU to GPU
+	VkDeviceMemory storageMemory;	// GPU memory allocation used to store data.
 };

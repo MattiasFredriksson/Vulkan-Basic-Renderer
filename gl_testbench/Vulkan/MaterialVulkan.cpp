@@ -2,6 +2,7 @@
 
 MaterialVulkan::MaterialVulkan(const std::string & name)
 {
+
 }
 
 MaterialVulkan::~MaterialVulkan()
@@ -10,6 +11,7 @@ MaterialVulkan::~MaterialVulkan()
 
 void MaterialVulkan::setShader(const std::string & shaderFileName, ShaderType type)
 {
+	shaderFileNames[type] = shaderFileName;
 }
 
 void MaterialVulkan::removeShader(ShaderType type)
@@ -27,6 +29,7 @@ int MaterialVulkan::compileMaterial(std::string & errString)
 
 void MaterialVulkan::addConstantBuffer(std::string name, unsigned int location)
 {
+	
 }
 
 void MaterialVulkan::updateConstantBuffer(const void * data, size_t size, unsigned int location)
@@ -40,4 +43,9 @@ int MaterialVulkan::enable()
 
 void MaterialVulkan::disable()
 {
+}
+
+void MaterialVulkan::setRenderer(VulkanRenderer* renderer)
+{
+	this->renderer = renderer;
 }

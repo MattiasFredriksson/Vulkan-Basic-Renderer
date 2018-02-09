@@ -3,6 +3,7 @@
 #include <GL/glew.h>
 #include <vector>
 #include "ConstantBufferVulkan.h"
+#include "VulkanRenderer.h"
 
 class VulkanRenderer;
 
@@ -59,8 +60,10 @@ public:
 
 	void disable();
 
-private:
+	void setRenderer(VulkanRenderer* renderer);
 
+private:
+	VulkanRenderer* renderer;	// Pointer to the renderer that created this material
 };
 
 #pragma once

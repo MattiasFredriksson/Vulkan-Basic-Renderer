@@ -22,7 +22,9 @@ VulkanRenderer::~VulkanRenderer() { }
 
 Material* VulkanRenderer::makeMaterial(const std::string& name)
 {
-	return (Material*) new MaterialVulkan(name);
+	MaterialVulkan* m = new MaterialVulkan(name);
+	m->setRenderer(this);
+	return (Material*)m;
 }
 Mesh* VulkanRenderer::makeMesh()
 {
@@ -49,15 +51,17 @@ RenderState* VulkanRenderer::makeRenderState()
 }
 std::string VulkanRenderer::getShaderPath()
 {
-	return "temp";
+	return "..\\assets\\GL45\\";
 }
 std::string VulkanRenderer::getShaderExtension()
 {
-	return "temp";
+	return ".glsl";
 }
 ConstantBuffer* VulkanRenderer::makeConstantBuffer(std::string NAME, unsigned int location)
 {
-	return (ConstantBuffer*) new ConstantBufferVulkan(NAME, location);
+	ConstantBufferVulkan* cb = new ConstantBufferVulkan(NAME, location);
+	cb->init(this);
+	return (ConstantBuffer*) cb;
 }
 Technique* VulkanRenderer::makeTechnique(Material* m, RenderState* r)
 {
@@ -140,6 +144,14 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 	if (chosenPhysicalDevice < 0)
 		throw std::runtime_error("No available physical device matched specification.");
 
+	// Select the memory types to use for allocations
+	int stagingMemoryType = -1;
+	int storageMemoryType = -1;
+	selectMemoryTypes(physicalDevice, stagingMemoryType, storageMemoryType);
+
+	if (stagingMemoryType == -1 || storageMemoryType == -1)
+		throw std::runtime_error("Could not find suitable memory types.");
+
 	/* Create logical device
 	*/
 
@@ -183,6 +195,21 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 	// Create (vulkan) device
 	vkCreateDevice(physicalDevice, &deviceCreateInfo, nullptr, &device);
 
+	/* Allocate device memory
+	*/
+	VkMemoryAllocateInfo stagingInfo = {};
+	stagingInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	stagingInfo.pNext = nullptr;
+	stagingInfo.allocationSize = STAGING_MEMORY_SIZE;
+	stagingInfo.memoryTypeIndex = static_cast<uint32_t>(stagingMemoryType);
+	vkAllocateMemory(device, &stagingInfo, nullptr, &stagingMemory);
+
+	VkMemoryAllocateInfo storageInfo = {};
+	storageInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	storageInfo.pNext = nullptr;
+	storageInfo.allocationSize = STORAGE_MEMORY_SIZE;
+	storageInfo.memoryTypeIndex = static_cast<uint32_t>(storageMemoryType);
+	vkAllocateMemory(device, &stagingInfo, nullptr, &storageMemory);
 
 	/* Create swap chain
 	*/
@@ -195,7 +222,7 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, windowSurface, &surfaceCapabilities);
 
 	if (presentingSupported == VK_FALSE)
-		throw "The selected queue does not support presenting. Do more programming >:|";
+		throw std::runtime_error("The selected queue does not support presenting. Do more programming >:|");
 
 	// Get supported formats
 	std::vector<VkSurfaceFormatKHR> formats;
@@ -235,12 +262,12 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 
 	result = vkCreateSwapchainKHR(device, &swapchainCreateInfo, nullptr, &swapchain);
 	if (result != VK_SUCCESS)
-		throw "Failed to create swapchain";
+		throw std::runtime_error("Failed to create swapchain");
 
 	// Aquire the swapchain images
 	ALLOC_QUERY_ASSERT(result, vkGetSwapchainImagesKHR, swapchainImages, device, swapchain);
 	if (result != VK_SUCCESS)
-		throw "Failed to get swapchain images";
+		throw std::runtime_error("Failed to get swapchain images");
 
 	// Create image views for the swapchain images
 	swapchainImageViews.resize(swapchainImages.size());
@@ -265,7 +292,7 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 
 		result = vkCreateImageView(device, &imageViewCreateInfo, nullptr, &swapchainImageViews[i]);
 		if (result != VK_SUCCESS)
-			throw "Failed to create image view";
+			throw std::runtime_error("Failed to create image view");
 	}
 
 	return 0;
@@ -281,10 +308,17 @@ void VulkanRenderer::present()
 int VulkanRenderer::shutdown()
 {
 	// Clean up Vulkan
+	for (int i = 0; i < swapchainImageViews.size(); ++i)
+		vkDestroyImageView(device, swapchainImageViews[i], nullptr);
+	for (int i = 0; i < swapchainImages.size(); ++i)
+		vkDestroyImage(device, swapchainImages[i], nullptr);
+	vkFreeMemory(device, storageMemory, nullptr);
+	vkFreeMemory(device, stagingMemory, nullptr);
 	vkDestroySwapchainKHR(device, swapchain, nullptr);
 	vkDestroySurfaceKHR(instance, windowSurface, nullptr);
 	vkDestroyDevice(device, nullptr);
 	vkDestroyInstance(instance, nullptr);
+
 	//Clean up SDL
 	SDL_DestroyWindow(window);
 	SDL_Quit();
