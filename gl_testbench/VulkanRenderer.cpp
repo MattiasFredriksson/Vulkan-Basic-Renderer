@@ -70,6 +70,9 @@ Technique* VulkanRenderer::makeTechnique(Material* m, RenderState* r)
 
 int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 {
+	this->width = width;
+	this->height = height;
+
 	/* Create Vulkan instance
 	*/
 
@@ -216,7 +219,8 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 
 	// Get supported formats
 	std::vector<VkSurfaceFormatKHR> formats;
-	ALLOC_QUERY_ASSERT(result, vkGetPhysicalDeviceSurfaceFormatsKHR, formats, physicalDevice, windowSurface)
+	ALLOC_QUERY_ASSERT(result, vkGetPhysicalDeviceSurfaceFormatsKHR, formats, physicalDevice, windowSurface);
+	swapchainFormat = formats[0];
 
 	// Choose the mode for the swap chain that determines how the frame buffers are swapped.
 	VkPresentModeKHR presentModePref[] =
@@ -430,6 +434,21 @@ void VulkanRenderer::setConstantBufferData(VkBuffer buffer, const void* data, si
 	vkQueueWaitIdle(queue);		// Wait until the copy is complete
 
 	vkFreeCommandBuffers(device, stagingCommandPool, 1, &stagingCommandBuffer);
+}
+
+VkSurfaceFormatKHR VulkanRenderer::getSwapchainFormat()
+{
+	return swapchainFormat;
+}
+
+unsigned int VulkanRenderer::getWidth()
+{
+	return width;
+}
+
+unsigned int VulkanRenderer::getHeight()
+{
+	return height;
 }
 
 void VulkanRenderer::createStagingBuffer()

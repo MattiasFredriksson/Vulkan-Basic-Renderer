@@ -58,6 +58,11 @@ public:
 
 	void setConstantBufferData(VkBuffer buffer, const void* data, size_t size, Material * m, unsigned int location);
 
+	VkSurfaceFormatKHR getSwapchainFormat();
+
+	unsigned int getWidth();
+	unsigned int getHeight();
+
 private:
 	std::vector<MemoryTypeInfo> memoryTypes;
 
@@ -94,4 +99,9 @@ private:
 	VkCommandPool drawingCommandPool;	// Allocates commands used for drawing
 
 	VkQueue queue;		// Handle to the queue used
+
+	VkSurfaceFormatKHR swapchainFormat;
+
+	unsigned int width;
+	unsigned int height;
 };

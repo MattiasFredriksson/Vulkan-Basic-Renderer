@@ -169,6 +169,7 @@
     <ClCompile Include="OpenGL\VertexBufferGL.cpp" />
     <ClCompile Include="Sampler2D.cpp" />
     <ClCompile Include="Scene.cpp" />
+    <ClCompile Include="TechniqueVulkan.cpp" />
     <ClCompile Include="VertexBuffer.cpp" />
     <ClCompile Include="Camera.cpp" />
     <ClCompile Include="main.cpp" />
@@ -204,6 +205,7 @@
     <ClInclude Include="OpenGL\VertexBufferGL.h" />
     <ClInclude Include="Sampler2D.h" />
     <ClInclude Include="Scene.h" />
+    <ClInclude Include="TechniqueVulkan.h" />
     <ClInclude Include="VertexBuffer.h" />
     <ClInclude Include="Camera.h" />
     <ClInclude Include="IA.h" />

@@ -120,6 +120,9 @@
     <ClCompile Include="Vulkan\MeshVulkan.cpp">
       <Filter>Source Files\Vulkan</Filter>
     </ClCompile>
+    <ClCompile Include="TechniqueVulkan.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Renderer.h">
@@ -223,6 +226,9 @@
     </ClInclude>
     <ClInclude Include="VulkanConstruct.h">
       <Filter>Header Files\Vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="TechniqueVulkan.h">
+      <Filter>Source Files\Vulkan</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

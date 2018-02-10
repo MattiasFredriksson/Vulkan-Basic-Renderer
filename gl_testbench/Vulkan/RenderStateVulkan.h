@@ -11,6 +11,9 @@ public:
 	void set();
 
 	void setGlobalWireFrame(bool* global);
-private:
-};
 
+	bool getWireframe();
+private:
+	bool wireframe;
+	bool* globalWireframe;
+};
