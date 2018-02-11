@@ -67,8 +67,17 @@ int choosePhysicalDevice(VkInstance &instance, VkSurfaceKHR &surface, vk::isDevi
 /* Memory */
 
 VkBuffer createBuffer(VkDevice device, size_t byte_size, VkBufferUsageFlags usage, uint32_t queueCount = 0, uint32_t *queueFamilyIndices = nullptr);
+VkImage createTexture2D(VkDevice device, uint32_t width, uint32_t height, VkFormat format = VK_FORMAT_R8G8B8A8_UNORM, VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL);
+
 VkDeviceMemory allocPhysicalMemory(VkDevice device, VkPhysicalDevice physicalDevice, VkBuffer buffer, VkMemoryPropertyFlags properties, bool bindToBuffer = false);
+VkDeviceMemory allocPhysicalMemory(VkDevice device, VkPhysicalDevice physicalDevice, VkImage image, VkMemoryPropertyFlags properties, bool bindToImage = false);
 VkDeviceMemory allocPhysicalMemory(VkDevice device, VkPhysicalDevice physicalDevice, VkMemoryRequirements requirements, VkMemoryPropertyFlags properties);
+
+/* Commands */
+
+VkCommandBuffer beginSingleCommand(VkDevice device, VkCommandPool commandPool);
+void endSingleCommand_Wait(VkDevice device, VkQueue queue, VkCommandPool commandPool, VkCommandBuffer commandBuf);
+
 
 #ifdef VULKAN_DEVICE_IMPLEMENTATION
 
@@ -281,6 +290,63 @@ VkBuffer createBuffer(VkDevice device, size_t byte_size, VkBufferUsageFlags usag
 	}
 	return buffer;
 }
+
+/* Create a 2D texture image of specific size and format.
+*/
+VkImage createTexture2D(VkDevice device, uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling)
+{
+	VkImageCreateInfo imageInfo = {};
+	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	imageInfo.imageType = VK_IMAGE_TYPE_2D;
+	imageInfo.extent.width = width;
+	imageInfo.extent.height = height;
+	imageInfo.format = format;
+	imageInfo.extent.depth = 1;
+	imageInfo.mipLevels = 1;
+	imageInfo.arrayLayers = 1;
+
+	imageInfo.tiling = tiling;
+	imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	// This image is used for sampling!...
+	imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+	imageInfo.flags = 0; // Optional
+	imageInfo.queueFamilyIndexCount = 0;
+	imageInfo.pQueueFamilyIndices = nullptr;
+
+	VkImage texture;
+	VkResult result = vkCreateImage(device, &imageInfo, nullptr, &texture);
+	if (result != VK_SUCCESS) {
+		throw std::runtime_error("failed to create image!");
+	}
+	return texture;
+}
+
+void checkValidImageFormats(VkPhysicalDevice device)
+{
+	const int NUM_FORMAT = 2;
+	VkFormat FORMATS[NUM_FORMAT] =
+	{
+		VK_FORMAT_R8G8B8_UNORM,
+		VK_FORMAT_R8G8B8_UINT
+	};
+	char* NAMES[NUM_FORMAT] =
+	{
+		"VK_FORMAT_R8G8B8_UNORM",
+		"VK_FORMAT_R8G8B8_UINT"
+	};
+	VkFormatProperties prop;
+	for (int i = 0; i < NUM_FORMAT; i++)
+	{
+		vkGetPhysicalDeviceFormatProperties(device, FORMATS[i], &prop);
+		if (prop.optimalTilingFeatures == 0)
+			std::cout << NAMES[i] << " not supported\n";
+		else
+			std::cout << NAMES[i] << " supported\n";
+	}
+}
+
 /* Find a memory type on the device mathcing the specification
 */
 uint32_t findMemoryType(VkPhysicalDevice physicalDevice, uint32_t typeFilter, VkMemoryPropertyFlags properties) {
@@ -322,7 +388,7 @@ VkDeviceMemory allocPhysicalMemory(VkDevice device, VkPhysicalDevice physicalDev
 /* Allocate physical memory on the device for a buffer object.
 device			<< Handle to the device.
 physicalDevice	<< Handle to the physical device.
-buffer			<< Related buffer.
+buffer			<< Buffer specifying the memory req.
 properties		<< The properties the memory should have (dependent on buffer and how it's used).
 bindToBuffer	<< If the memory should be bound to the buffer
 */
@@ -339,67 +405,89 @@ VkDeviceMemory allocPhysicalMemory(VkDevice device, VkPhysicalDevice physicalDev
 		vkBindBufferMemory(device, buffer, mem, 0);
 	return mem;
 }
-
-/* To be removed:
-struct MemoryTypeInfo
-{
-	bool deviceLocal;
-	bool hostVisible;
-	bool hostCoherent;
-};
-/* Gets info on memory types for a device
-physicalDevice		<<	Vulkan device to consider
-stagingMemoryType	>>	Array of memory types to be filled with information
-
-void gatherMemoryInfo(VkPhysicalDevice& physicalDevice, std::vector<VulkanRenderer::MemoryTypeInfo>& memoryInfo)
-{
-	VkPhysicalDeviceMemoryProperties memProperty;		// Holds memory properties of selected physical device
-	vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperty);
-
-	memoryInfo.resize(memProperty.memoryTypeCount);
-
-	if (PRINT_MEMORY_INFO)
-	{
-		for (unsigned int i = 0; i < memProperty.memoryHeapCount; ++i)
-		{
-
-			std::cout << "Memory heap " << i << ":\n";
-			if (memProperty.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT)
-				std::cout << "Device local\n";
-			else
-				std::cout << "Not device local\n";
-		}
-	}
-
-	for (unsigned int i = 0; i < memProperty.memoryTypeCount; ++i)
-	{
-		memoryInfo[i].deviceLocal = (memProperty.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) ? true : false;
-
-		memoryInfo[i].hostVisible = (memProperty.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) ? true : false;
-
-		memoryInfo[i].hostCoherent = (memProperty.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) ? true : false;
-
-		if (PRINT_MEMORY_INFO)
-		{
-			std::cout << "Memory type " << i << ", Heap: " << memProperty.memoryTypes[i].heapIndex << "\n";
-			if (memProperty.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
-				std::cout << "Device local\n";
-			else
-				std::cout << "Not device local\n";
-
-			if (memProperty.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
-				std::cout << "Host visible\n";
-			else
-				std::cout << "Not host visible\n";
-
-			if (memProperty.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
-				std::cout << "Host coherent\n";
-			else
-				std::cout << "Not host coherent\n";
-		}
-	}
-}
+/* Allocate physical memory on the device for a buffer object.
+device			<< Handle to the device.
+physicalDevice	<< Handle to the physical device.
+image			<< Image specifying the memory req.
+properties		<< The properties the memory should have (dependent on buffer and how it's used).
+bindToImage		<< If the memory should be bound to the image parameter.
 */
+VkDeviceMemory allocPhysicalMemory(VkDevice device, VkPhysicalDevice physicalDevice, VkImage image, VkMemoryPropertyFlags properties, bool bindToImage)
+{
+	VkMemoryRequirements memRequirements;
+	vkGetImageMemoryRequirements(device, image, &memRequirements);
+
+	//Allocate:
+	// *Note that the number of allocations are limited!
+	VkDeviceMemory mem = allocPhysicalMemory(device, physicalDevice, memRequirements, properties);
+	// Bind to buffer.
+	if (bindToImage)
+		vkBindImageMemory(device, image, mem, 0);
+	return mem;
+}
+
+
+#pragma endregion
+
+
+
+#pragma region Command
+/* Create a command of single time use taking one command.
+commandPool << Pool to allocate command buffer from.
+*/
+VkCommandBuffer beginSingleCommand(VkDevice device, VkCommandPool commandPool)
+{
+	// Create command buffer
+	VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
+	commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	commandBufferAllocateInfo.pNext = nullptr;
+	commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	commandBufferAllocateInfo.commandPool = commandPool;
+	commandBufferAllocateInfo.commandBufferCount = 1;
+
+	VkCommandBuffer commandBuffer;
+	VkResult result = vkAllocateCommandBuffers(device, &commandBufferAllocateInfo, &commandBuffer);
+	if (result != VK_SUCCESS)
+		throw std::runtime_error("Failed to create command buffer for staging.");
+
+	// Begin recording into command buffer
+	VkCommandBufferBeginInfo commandBufferBeginInfo = {};
+	commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	commandBufferBeginInfo.pNext = nullptr;
+	commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+	commandBufferBeginInfo.pInheritanceInfo = nullptr;
+
+	result = vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo);
+	if (result != VK_SUCCESS)
+		throw std::runtime_error("Failed to begin command buffer.");
+	return commandBuffer;
+}
+
+/* Submit and clean-up a single time use command buffer.
+*/
+void endSingleCommand_Wait(VkDevice device, VkQueue queue, VkCommandPool commandPool, VkCommandBuffer commandBuf)
+{
+	// End command recording
+	vkEndCommandBuffer(commandBuf);
+
+	// Submit command buffer to queue
+	VkSubmitInfo submitInfo = {};
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submitInfo.pNext = nullptr;
+	submitInfo.waitSemaphoreCount = 0;
+	submitInfo.pWaitSemaphores = nullptr;
+	submitInfo.pWaitDstStageMask = nullptr;
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &commandBuf;
+	submitInfo.signalSemaphoreCount = 0;
+	submitInfo.pSignalSemaphores = nullptr;
+
+	vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE);
+	vkQueueWaitIdle(queue);		// Wait until the copy is complete
+
+	vkFreeCommandBuffers(device, commandPool, 1, &commandBuf);
+}
+
 
 #pragma endregion
 

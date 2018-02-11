@@ -20,7 +20,7 @@
 
 
 VulkanRenderer::VulkanRenderer()
- : memPool((int)MemoryPool::INDEX_BUFFER + 1) 
+ : memPool((int)MemoryPool::Count)
 {
 }
 VulkanRenderer::~VulkanRenderer() { }
@@ -41,7 +41,7 @@ VertexBuffer* VulkanRenderer::makeVertexBuffer(size_t size, VertexBuffer::DATA_U
 }
 Texture2D* VulkanRenderer::makeTexture2D()
 {
-	return (Texture2D*) new Texture2DVulkan();
+	return (Texture2D*) new Texture2DVulkan(this);
 }
 Sampler2D* VulkanRenderer::makeSampler2D()
 {
@@ -196,11 +196,17 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 
 	vkGetDeviceQueue(device, chosenQueueFamily, 0, &queue);
 
-	// Allocate storage buffers
+	// Allocate device memory
 	createStagingBuffer();
-	allocateStorageMemory(MemoryPool::UNIFORM_BUFFER, STORAGE_SIZE[MemoryPool::UNIFORM_BUFFER], VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-	allocateStorageMemory(MemoryPool::VERTEX_BUFFER, STORAGE_SIZE[MemoryPool::VERTEX_BUFFER], VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
-	allocateStorageMemory(MemoryPool::INDEX_BUFFER, STORAGE_SIZE[MemoryPool::INDEX_BUFFER], VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+	
+#ifdef _DEBUG
+	checkValidImageFormats(physicalDevice);
+#endif
+	allocateImageMemory(MemoryPool::IMAGE_RGBA8_BUFFER, STORAGE_SIZE[MemoryPool::IMAGE_RGBA8_BUFFER], VK_FORMAT_R8G8B8A8_UNORM);
+
+	allocateBufferMemory(MemoryPool::UNIFORM_BUFFER, STORAGE_SIZE[MemoryPool::UNIFORM_BUFFER], VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+	allocateBufferMemory(MemoryPool::VERTEX_BUFFER, STORAGE_SIZE[MemoryPool::VERTEX_BUFFER], VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+	allocateBufferMemory(MemoryPool::INDEX_BUFFER, STORAGE_SIZE[MemoryPool::INDEX_BUFFER], VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 
 	/* Create swap chain
 	*/
@@ -390,33 +396,12 @@ size_t VulkanRenderer::bindPhysicalMemory(VkBuffer buffer, size_t size, MemoryPo
 	return freeOffset;
 }
 
+
 void VulkanRenderer::transferBufferData(VkBuffer buffer, const void* data, size_t size, size_t offset)
 {
 	updateStagingBuffer(data, size);
 
-	// Create command buffer
-	VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
-	commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	commandBufferAllocateInfo.pNext = nullptr;
-	commandBufferAllocateInfo.commandPool = stagingCommandPool;
-	commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	commandBufferAllocateInfo.commandBufferCount = 1;
-
-	VkCommandBuffer stagingCommandBuffer;
-	VkResult result = vkAllocateCommandBuffers(device, &commandBufferAllocateInfo, &stagingCommandBuffer);
-	if (result != VK_SUCCESS)
-		throw std::runtime_error("Failed to create command buffer for staging.");
-
-	// Begin recording into command buffer
-	VkCommandBufferBeginInfo commandBufferBeginInfo = {};
-	commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-	commandBufferBeginInfo.pNext = nullptr;
-	commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-	commandBufferBeginInfo.pInheritanceInfo = nullptr;
-
-	result = vkBeginCommandBuffer(stagingCommandBuffer, &commandBufferBeginInfo);
-	if (result != VK_SUCCESS)
-		throw std::runtime_error("Failed to begin command buffer.");
+	VkCommandBuffer cmdBuffer = beginSingleCommand(device, stagingCommandPool);
 
 	// Record the copying command
 	VkBufferCopy bufferCopyRegion = {};
@@ -424,27 +409,98 @@ void VulkanRenderer::transferBufferData(VkBuffer buffer, const void* data, size_
 	bufferCopyRegion.dstOffset = offset;
 	bufferCopyRegion.size = size;
 
-	vkCmdCopyBuffer(stagingCommandBuffer, stagingBuffer, buffer, 1, &bufferCopyRegion);
+	vkCmdCopyBuffer(cmdBuffer, stagingBuffer, buffer, 1, &bufferCopyRegion);
 	
-	// End command recording
-	vkEndCommandBuffer(stagingCommandBuffer);
+	endSingleCommand_Wait(device, queue, stagingCommandPool, cmdBuffer);
+}
 
-	// Submit command buffer to queue
-	VkSubmitInfo submitInfo = {};
-	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	submitInfo.pNext = nullptr;
-	submitInfo.waitSemaphoreCount = 0;
-	submitInfo.pWaitSemaphores = nullptr;
-	submitInfo.pWaitDstStageMask = nullptr;
-	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &stagingCommandBuffer;
-	submitInfo.signalSemaphoreCount = 0;
-	submitInfo.pSignalSemaphores = nullptr;
+void VulkanRenderer::transferImageData(VkImage image, const void* data, size_t size, size_t offset)
+{
+	updateStagingBuffer(data, size);
 
-	vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE);
-	vkQueueWaitIdle(queue);		// Wait until the copy is complete
+	VkCommandBuffer cmdBuffer = beginSingleCommand(device, stagingCommandPool);
 
-	vkFreeCommandBuffers(device, stagingCommandPool, 1, &stagingCommandBuffer);
+	// Record the copying command
+	VkBufferImageCopy region = {};
+	region.bufferOffset = 0;
+	region.bufferRowLength = 0;
+	region.bufferImageHeight = 0;
+
+	region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	region.imageSubresource.mipLevel = 0;
+	region.imageSubresource.baseArrayLayer = 0;
+	region.imageSubresource.layerCount = 1;
+
+	region.imageOffset = { 0, 0, 0 };
+	region.imageExtent = {
+		width,
+		height,
+		1
+	};
+	vkCmdCopyBufferToImage(
+		cmdBuffer,
+		stagingBuffer,
+		image,
+		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+		1,
+		&region
+	);
+
+	endSingleCommand_Wait(device, queue, stagingCommandPool, cmdBuffer);
+}
+
+
+void VulkanRenderer::transitionImageFormat(VkImage image, VkFormat format, VkImageLayout fromLayout, VkImageLayout toLayout)
+{
+	VkCommandBuffer cmdBuffer = beginSingleCommand(device, stagingCommandPool);
+
+
+
+	VkImageMemoryBarrier barrier = {};
+	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+	barrier.oldLayout = fromLayout;
+	barrier.newLayout = toLayout;
+	barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+
+	barrier.image = image;
+	barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	barrier.subresourceRange.baseMipLevel = 0;
+	barrier.subresourceRange.levelCount = 1;
+	barrier.subresourceRange.baseArrayLayer = 0;
+	barrier.subresourceRange.layerCount = 1;
+
+	VkPipelineStageFlags sourceStage;
+	VkPipelineStageFlags destinationStage;
+	if (fromLayout == VK_IMAGE_LAYOUT_UNDEFINED && toLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
+		barrier.srcAccessMask = 0;
+		barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+
+		sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+		destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+	}
+	else if (fromLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && toLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+		barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+		sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+		destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+	}
+	else {
+		throw std::invalid_argument("unsupported layout transition!");
+	}
+
+	//Command
+	vkCmdPipelineBarrier(
+		cmdBuffer,
+		sourceStage, destinationStage,
+		0,
+		0, nullptr,
+		0, nullptr,
+		1, &barrier
+	);
+
+	endSingleCommand_Wait(device, queue, stagingCommandPool, cmdBuffer);
 }
 
 VkSurfaceFormatKHR VulkanRenderer::getSwapchainFormat()
@@ -484,9 +540,18 @@ void VulkanRenderer::createStagingBuffer()
 	memPool[MemoryPool::STAGING_BUFFER].handle = allocPhysicalMemory(device, physicalDevice, stagingBuffer, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, true);
 }
 
-void VulkanRenderer::allocateStorageMemory(MemoryPool type, size_t size, VkFlags usage)
+void VulkanRenderer::allocateBufferMemory(MemoryPool type, size_t size, VkFlags usage)
 {
 	VkBuffer dummy = createBuffer(device, size, usage);
 	memPool[type].handle = allocPhysicalMemory(device, physicalDevice, dummy, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	vkDestroyBuffer(device, dummy, nullptr);
+}
+void VulkanRenderer::allocateImageMemory(MemoryPool type, size_t size, VkFormat imgFormat)
+{
+	// Might be a bad way to set size...
+	uint32_t size_dim = (uint32_t)sqrt(size);
+	VkImage dummy = createTexture2D(device, size_dim, size_dim, imgFormat);
+	memPool[type].handle = allocPhysicalMemory(device, physicalDevice, dummy, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	vkDestroyImage(device, dummy, nullptr);
+
 }

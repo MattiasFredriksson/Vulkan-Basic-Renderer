@@ -14,9 +14,6 @@
 #pragma comment(lib,"SDL2.lib")
 #pragma comment(lib,"SDL2main.lib")
 
-// Size in bytes of the memory types used
-const uint32_t STORAGE_SIZE[] = { 256, 1024*1024, 1024 * 1024, 1024 * 1024 };
-
 struct DevMemoryAllocation
 {
 	VkDeviceMemory handle;	// The device memory handle
@@ -26,11 +23,16 @@ struct DevMemoryAllocation
 };
 enum MemoryPool
 {
-	STAGING_BUFFER = 0,	// GPU memory allocation accessible to CPU. Used to move data from CPU to GPU
-	UNIFORM_BUFFER = 1,	// GPU memory allocation used to store uniform data.
-	VERTEX_BUFFER = 2,
-	INDEX_BUFFER = 3
+	STAGING_BUFFER = 0,		// GPU memory allocation accessible to CPU. Used to move data from CPU to GPU
+	UNIFORM_BUFFER = 1,		// GPU memory allocation used to store uniform data.
+	IMAGE_RGBA8_BUFFER = 2,	// GPU memory allocation to store image data.
+	VERTEX_BUFFER = 3,
+	INDEX_BUFFER = 4,
+	Count = 5
 };
+
+// Size in bytes of the memory types used
+const uint32_t STORAGE_SIZE[(int)MemoryPool::Count] = { 2048 * 2048, 1024*1024, 1024 * 1024, 1024 * 1024, 1024 * 1024 };
 
 class VulkanRenderer : public Renderer
 {
@@ -67,7 +69,10 @@ public:
 
 	/* Bind a physical memory partition on the device to the buffer from the specific memory pool. */
 	size_t bindPhysicalMemory(VkBuffer buffer, size_t size, MemoryPool memPool);
+	/* Transfer data to the specific buffer. */
 	void transferBufferData(VkBuffer buffer, const void* data, size_t size, size_t offset);
+	void transferImageData(VkImage image, const void* data, size_t size, size_t offset);
+	void transitionImageFormat(VkImage image, VkFormat format, VkImageLayout fromLayout, VkImageLayout toLayout);
 
 	VkSurfaceFormatKHR getSwapchainFormat();
 
@@ -76,8 +81,9 @@ public:
 
 private:
 	void createStagingBuffer();
-	void updateStagingBuffer(const void* data, size_t size);	// Writes memory from data into the staging buffer
-	void allocateStorageMemory(MemoryPool type, size_t size, VkFlags usage);	// Allocates memory pool data
+	void updateStagingBuffer(const void* data, size_t size);								// Writes memory from data into the staging buffer
+	void allocateBufferMemory(MemoryPool type, size_t size, VkFlags usage);					// Allocates memory pool buffer data
+	void allocateImageMemory(MemoryPool type, size_t size, VkFormat imgFormat);				// Allocates memory pool image data
 
 	VkInstance instance;
 
