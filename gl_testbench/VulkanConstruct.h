@@ -5,20 +5,17 @@
 #include <algorithm>
 #include "vulkan\VulkanRenderer.h"
 
+#pragma region Inline and type defs
+
 #define PRINT_MEMORY_INFO true		// Enable to write info on memory types to cout
 
 #define ALLOC_QUERY(fn, vec, ...) { unsigned int count=0; fn(__VA_ARGS__, &count, nullptr); vec.resize(count); fn(__VA_ARGS__, &count, vec.data()); }
 #define ALLOC_QUERY_ASSERT(result, fn, vec, ...) { unsigned int count=0; fn(__VA_ARGS__, &count, nullptr); vec.resize(count); result = fn(__VA_ARGS__, &count, vec.data()); assert(result == VK_SUCCESS); }
 
-#define VULKAN_DEVICE_IMPLEMENTATION
-#ifdef VULKAN_DEVICE_IMPLEMENTATION
-
-#include <vector>
-
 
 /* Check if a mode is available in the list*/
 template<class T>
-bool hasMode(int mode, T *mode_list, size_t list_len)
+inline bool hasMode(int mode, T *mode_list, size_t list_len)
 {
 	for (size_t i = 0; i < list_len; i++)
 	{
@@ -29,22 +26,53 @@ bool hasMode(int mode, T *mode_list, size_t list_len)
 }
 /* Check if the flags are set in the property. */
 template<class T>
-bool hasFlag(T property, T flags)
+inline bool hasFlag(T property, T flags)
 {
 	return (property & flags) == flags;
 }
 /* Find if the flags are equal. */
 template<class T>
-bool matchFlag(T property, T flags)
+inline bool matchFlag(T property, T flags)
 {
 	return property == flags;
 }
 /* Unset bit in the flag. */
 template<class T>
-T rmvFlag(T property, T rmv)
+inline T rmvFlag(T property, T rmv)
 {
 	return property & ~rmv;
 }
+
+#pragma endregion
+
+/* Function declarations
+*/
+
+VkPresentModeKHR chooseSwapPresentMode(VkPhysicalDevice &device, VkSurfaceKHR &surface, VkPresentModeKHR *prefered_modes, size_t num_prefered);
+
+/*	Queue selection */
+int anyQueueFamily(VkPhysicalDevice &device, VkQueueFlags* pref_queueFlag, int num_flag);
+int matchQueueFamily(VkPhysicalDevice &device, VkQueueFlags* pref_queueFlag, int num_flag);
+int pickQueueFamily(VkPhysicalDevice &device, VkQueueFlags* pref_queueFlag, int num_flag);
+
+/* Device selection */
+namespace vk
+{
+	/*	Determines if a physical device is suitable for the system. Return rank of the device, ranks greater then 0 will be available for selection. */
+	typedef int(*isDeviceSuitable)(VkPhysicalDevice &device, VkPhysicalDeviceProperties &prop, VkPhysicalDeviceFeatures &feat, VkQueueFamilyProperties *queue_family_prop, size_t len_family_prop);
+
+	/* Function selecting any dedicated device making a preference for discrete over integrated devices.
+	*/
+	int specifyAnyDedicatedDevice(VkPhysicalDevice &device, VkPhysicalDeviceProperties &prop, VkPhysicalDeviceFeatures &feat, VkQueueFamilyProperties *queue_family_prop, size_t len_family_prop);
+}
+int choosePhysicalDevice(VkInstance &instance, VkSurfaceKHR &surface, vk::isDeviceSuitable deviceSpec, VkQueueFlags queueSupportReq, VkPhysicalDevice &result);
+
+void gatherMemoryInfo(VkPhysicalDevice& physicalDevice, std::vector<VulkanRenderer::MemoryTypeInfo>& memoryInfo);
+
+#ifdef VULKAN_DEVICE_IMPLEMENTATION
+
+#include <vector>
+
 
 VkPresentModeKHR chooseSwapPresentMode(VkPhysicalDevice &device, VkSurfaceKHR &surface, VkPresentModeKHR *prefered_modes, size_t num_prefered) {
 
@@ -117,7 +145,8 @@ int matchQueueFamily(VkPhysicalDevice &device, VkQueueFlags* pref_queueFlag, int
 	return -1;
 }
 
-
+/* Find a queue family that exactly matches one of the preferences, if nothing found the any family that supports the preference is selected.
+*/
 int pickQueueFamily(VkPhysicalDevice &device, VkQueueFlags* pref_queueFlag, int num_flag)
 {
 	int family = matchQueueFamily(device, pref_queueFlag, num_flag);
@@ -235,7 +264,7 @@ void gatherMemoryInfo(VkPhysicalDevice& physicalDevice, std::vector<VulkanRender
 
 	if (PRINT_MEMORY_INFO)
 	{
-		for (int i = 0; i < memProperty.memoryHeapCount; ++i)
+		for (unsigned int i = 0; i < memProperty.memoryHeapCount; ++i)
 		{
 
 			std::cout << "Memory heap " << i << ":\n";
@@ -246,7 +275,7 @@ void gatherMemoryInfo(VkPhysicalDevice& physicalDevice, std::vector<VulkanRender
 		}
 	}
 
-	for (int i = 0; i < memProperty.memoryTypeCount; ++i)
+	for (unsigned int i = 0; i < memProperty.memoryTypeCount; ++i)
 	{
 		memoryInfo[i].deviceLocal = (memProperty.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) ? true : false;
 

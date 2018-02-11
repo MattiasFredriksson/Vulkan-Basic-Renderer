@@ -1,13 +1,16 @@
 #pragma once
-#include <GL/glew.h>
+#include<vulkan/vulkan.h>
 #include "../VertexBuffer.h"
+
+
+class VulkanRenderer;
 
 class VertexBufferVulkan :
 	public VertexBuffer
 {
 public:
 
-	VertexBufferVulkan(size_t size, VertexBuffer::DATA_USAGE usage);
+	VertexBufferVulkan(VulkanRenderer *renderHandle, size_t size, VertexBuffer::DATA_USAGE usage);
 	~VertexBufferVulkan();
 
 	void setData(const void* data, size_t size, size_t offset);
@@ -15,5 +18,10 @@ public:
 	void unbind();
 	size_t getSize();
 private:
+
+	VulkanRenderer* _renderHandle;
+	VkBuffer _bufferHandle;
+	VkDeviceMemory _memHandle;
+	size_t totalSize;
 };
 

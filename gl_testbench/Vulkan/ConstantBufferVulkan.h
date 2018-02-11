@@ -17,10 +17,8 @@ private:
 	VulkanRenderer* renderer;
 
 	std::string name;
-	uint32_t location;
+	uint32_t location, poolOffset, memSize;
 
 	VkBuffer buffer;
-
-	bool bufferCreated{ false };
 };
 

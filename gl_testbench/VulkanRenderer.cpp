@@ -13,11 +13,13 @@
 #include <assert.h>
 #include <iostream>
 
+#define VULKAN_DEVICE_IMPLEMENTATION
 #include "VulkanConstruct.h"
 
 
 
-VulkanRenderer::VulkanRenderer() { }
+VulkanRenderer::VulkanRenderer()
+ : memPool((int)MemoryPool::INDEX_BUFFER) { }
 VulkanRenderer::~VulkanRenderer() { }
 
 Material* VulkanRenderer::makeMaterial(const std::string& name)
@@ -32,7 +34,7 @@ Mesh* VulkanRenderer::makeMesh()
 }
 VertexBuffer* VulkanRenderer::makeVertexBuffer(size_t size, VertexBuffer::DATA_USAGE usage)
 {
-	return (VertexBuffer*) new VertexBufferVulkan(1, VertexBuffer::DATA_USAGE::DONTCARE);
+	return (VertexBuffer*) new VertexBufferVulkan(this, size, usage);
 }
 Texture2D* VulkanRenderer::makeTexture2D()
 {
@@ -142,8 +144,7 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 	*/
 
 	VkQueueFlags queueSupport = (VK_QUEUE_TRANSFER_BIT | VK_QUEUE_GRAPHICS_BIT);
-	VkPhysicalDevice physicalDevice;
-	int chosenPhysicalDevice = choosePhysicalDevice(instance, windowSurface, vk::specifyAnyDedicatedDevice, queueSupport, physicalDevice);
+	chosenPhysicalDevice = choosePhysicalDevice(instance, windowSurface, vk::specifyAnyDedicatedDevice, queueSupport, physicalDevice);
 	if (chosenPhysicalDevice < 0)
 		throw std::runtime_error("No available physical device matched specification.");
 
@@ -200,7 +201,7 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 	allocateStorageMemory();
 
 	// Bind the staging buffer to its memory
-	result = vkBindBufferMemory(device, stagingBuffer, stagingMemory, 0);
+	result = vkBindBufferMemory(device, stagingBuffer, memPool[MemoryPool::STAGING_BUFFER].handle, 0);
 	if (result != VK_SUCCESS)
 		throw std::runtime_error("Failed to bind staging buffer to memory.");
 
@@ -226,7 +227,7 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 	VkPresentModeKHR presentModePref[] =
 	{
 #ifdef NO_VSYNC
-		VK_PRESENT_MODE_IMMEDIATE_KHR,// Immediately presents images to screen
+		VK_PRESENT_MODE_IMMEDIATE_KHR,// Immediately present images to screen
 #endif
 		VK_PRESENT_MODE_MAILBOX_KHR // Oldest finished frame are replaced if 'framebuffer' queue is filled.
 	};
@@ -326,8 +327,10 @@ int VulkanRenderer::shutdown()
 		vkDestroyImageView(device, swapchainImageViews[i], nullptr);
 	for (int i = 0; i < swapchainImages.size(); ++i)
 		vkDestroyImage(device, swapchainImages[i], nullptr);
-	vkFreeMemory(device, storageMemory, nullptr);
-	vkFreeMemory(device, stagingMemory, nullptr);
+
+	for(uint32_t i = 0; i < memPool.size(); i++)
+		vkFreeMemory(device, memPool[i].handle, nullptr);
+
 	vkDestroySwapchainKHR(device, swapchain, nullptr);
 	vkDestroySurfaceKHR(instance, windowSurface, nullptr);
 	vkDestroyDevice(device, nullptr);
@@ -365,21 +368,33 @@ VkDevice VulkanRenderer::getDevice()
 	return device;
 }
 
-void VulkanRenderer::setConstantBufferData(VkBuffer buffer, const void* data, size_t size, Material * m, unsigned int location)
+VkPhysicalDevice VulkanRenderer::getPhysical()
 {
-	updateStagingBuffer(data, size);
+	return physicalDevice;
+}
 
+uint32_t VulkanRenderer::bindPhysicalMemory(VkBuffer buffer, uint32_t size, MemoryPool pool)
+{
 	// Adjust the memory offset to achieve proper alignment
 	VkMemoryRequirements memoryRequirements;
 	vkGetBufferMemoryRequirements(device, buffer, &memoryRequirements);
 
-	if (storageMemoryNextFreeOffset % memoryRequirements.alignment != 0)
-		storageMemoryNextFreeOffset += memoryRequirements.alignment - (storageMemoryNextFreeOffset % memoryRequirements.alignment);
+	uint32_t freeOffset = memPool[pool].freeOffset;
+	if (freeOffset % memoryRequirements.alignment != 0)
+		freeOffset += memoryRequirements.alignment - (freeOffset % memoryRequirements.alignment);
 
-
-	VkResult result = vkBindBufferMemory(device, buffer, storageMemory, storageMemoryNextFreeOffset);
+	VkResult result = vkBindBufferMemory(device, buffer, memPool[pool].handle, freeOffset);
 	if (result != VK_SUCCESS)
 		throw std::runtime_error("Failed to bind buffer to memory.");
+
+	// Update offset
+	memPool[pool].freeOffset = freeOffset + size;
+	return freeOffset;
+}
+
+void VulkanRenderer::setConstantBufferData(VkBuffer buffer, const void* data, uint32_t size, Material * m, unsigned int location)
+{
+	updateStagingBuffer(data, size);
 
 	// Create command buffer
 	VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
@@ -390,7 +405,7 @@ void VulkanRenderer::setConstantBufferData(VkBuffer buffer, const void* data, si
 	commandBufferAllocateInfo.commandBufferCount = 1;
 
 	VkCommandBuffer stagingCommandBuffer;
-	result = vkAllocateCommandBuffers(device, &commandBufferAllocateInfo, &stagingCommandBuffer);
+	VkResult result = vkAllocateCommandBuffers(device, &commandBufferAllocateInfo, &stagingCommandBuffer);
 	if (result != VK_SUCCESS)
 		throw std::runtime_error("Failed to create command buffer for staging.");
 
@@ -408,13 +423,11 @@ void VulkanRenderer::setConstantBufferData(VkBuffer buffer, const void* data, si
 	// Record the copying command
 	VkBufferCopy bufferCopyRegion = {};
 	bufferCopyRegion.srcOffset = 0;
-	bufferCopyRegion.dstOffset = storageMemoryNextFreeOffset;
+	bufferCopyRegion.dstOffset = 0;
 	bufferCopyRegion.size = size;
 
 	vkCmdCopyBuffer(stagingCommandBuffer, stagingBuffer, buffer, 1, &bufferCopyRegion);
-
-	storageMemoryNextFreeOffset += size;
-
+	
 	// End command recording
 	vkEndCommandBuffer(stagingCommandBuffer);
 
@@ -489,7 +502,7 @@ void VulkanRenderer::createStagingBuffer()
 	stagingInfo.pNext = nullptr;
 	stagingInfo.allocationSize = stagingBufferMemoryRequirement.size;
 	stagingInfo.memoryTypeIndex = static_cast<uint32_t>(appropriateMemoryIndex);
-	vkAllocateMemory(device, &stagingInfo, nullptr, &stagingMemory);
+	vkAllocateMemory(device, &stagingInfo, nullptr, &memPool[MemoryPool::STAGING_BUFFER].handle);
 }
 
 void VulkanRenderer::updateStagingBuffer(const void* data, uint32_t size)
@@ -498,14 +511,14 @@ void VulkanRenderer::updateStagingBuffer(const void* data, uint32_t size)
 		throw std::runtime_error("The data requested does not fit in the staging buffer.");
 
 	void* bufferContents = nullptr;
-	VkResult result = vkMapMemory(device, stagingMemory, 0, VK_WHOLE_SIZE, 0, &bufferContents);
+	VkResult result = vkMapMemory(device, memPool[MemoryPool::STAGING_BUFFER].handle, 0, VK_WHOLE_SIZE, 0, &bufferContents);
 
 	if (result != VK_SUCCESS)
 		throw std::runtime_error("Failed to map staging buffer to memory.");
 
 	memcpy(bufferContents, data, size);
 
-	vkUnmapMemory(device, stagingMemory);
+	vkUnmapMemory(device, memPool[MemoryPool::STAGING_BUFFER].handle);
 }
 
 void VulkanRenderer::allocateStorageMemory()
@@ -549,5 +562,5 @@ void VulkanRenderer::allocateStorageMemory()
 	storageInfo.pNext = nullptr;
 	storageInfo.allocationSize = STORAGE_MEMORY_SIZE;
 	storageInfo.memoryTypeIndex = static_cast<uint32_t>(appropriateMemoryIndex);
-	vkAllocateMemory(device, &storageInfo, nullptr, &storageMemory);
+	vkAllocateMemory(device, &storageInfo, nullptr, &memPool[MemoryPool::UNIFORM_BUFFER].handle);
 }
