@@ -9,16 +9,13 @@ class Renderer;
 class TechniqueVulkan : public Technique
 {
 public:
-	TechniqueVulkan(Material* m, RenderState* r);
+	TechniqueVulkan(Material* m, RenderState* r, VulkanRenderer* renderer);
 	virtual ~TechniqueVulkan();
 	Material* getMaterial() { return material; };
 	RenderState* getRenderState() { return renderState; };
 	virtual void enable(Renderer* renderer);
 
 	void setRenderer(VulkanRenderer* renderer);
-protected:
-	Material* material = nullptr;
-	RenderState* renderState = nullptr;
 private:
 	void createRenderPass();
 	void createDescriptorSet();

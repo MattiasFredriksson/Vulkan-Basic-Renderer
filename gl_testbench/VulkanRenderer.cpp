@@ -9,6 +9,7 @@
 #include "Vulkan\RenderStateVulkan.h"
 #include "Vulkan\ConstantBufferVulkan.h"
 #include "Technique.h"
+#include "TechniqueVulkan.h"
 #include <SDL_syswm.h>
 #include <assert.h>
 #include <iostream>
@@ -67,7 +68,7 @@ ConstantBuffer* VulkanRenderer::makeConstantBuffer(std::string NAME, unsigned in
 }
 Technique* VulkanRenderer::makeTechnique(Material* m, RenderState* r)
 {
-	return (Technique*) new Technique(m, r);
+	return (Technique*) new TechniqueVulkan(m, r, this);
 }
 
 int VulkanRenderer::initialize(unsigned int width, unsigned int height)

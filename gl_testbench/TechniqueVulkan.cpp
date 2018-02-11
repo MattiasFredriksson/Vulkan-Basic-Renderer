@@ -1,8 +1,12 @@
 #include "TechniqueVulkan.h"
 #include "Vulkan\RenderStateVulkan.h"
+#include "IA.h"
+#include "Vulkan\MaterialVulkan.h"
 
-TechniqueVulkan::TechniqueVulkan(Material* m, RenderState* r) : Technique(m, r)
+TechniqueVulkan::TechniqueVulkan(Material* m, RenderState* r, VulkanRenderer* renderer) : Technique(m, r)
 {
+	setRenderer(renderer);
+
 	createRenderPass();
 	createDescriptorSet();
 	createPipeline();
@@ -76,25 +80,108 @@ void TechniqueVulkan::createRenderPass()
 
 void TechniqueVulkan::createDescriptorSet()
 {
-	VkDescriptorSetLayoutBinding layoutBinding = {};
-	layoutBinding.binding = 0;
-	layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	layoutBinding.descriptorCount = 1;
-	layoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-	layoutBinding.pImmutableSamplers = nullptr;
+	// This is all hardcoded, not very good
+	std::vector<VkDescriptorSetLayoutBinding> layoutBindings;
 
+	// Vertex shader slots
+	if (((MaterialVulkan*)material)->hasDefine(Material::ShaderType::VS, "#define POSITION "))
+	{
+		VkDescriptorSetLayoutBinding layoutBinding = {};
+		layoutBinding.binding = POSITION;
+		layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		layoutBinding.descriptorCount = 1;
+		layoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+		layoutBinding.pImmutableSamplers = nullptr;
+
+		layoutBindings.push_back(layoutBinding);
+	}
+
+	if (((MaterialVulkan*)material)->hasDefine(Material::ShaderType::VS, "#define NORMAL "))
+	{
+		VkDescriptorSetLayoutBinding layoutBinding = {};
+		layoutBinding.binding = NORMAL;
+		layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		layoutBinding.descriptorCount = 1;
+		layoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+		layoutBinding.pImmutableSamplers = nullptr;
+
+		layoutBindings.push_back(layoutBinding);
+	}
+
+	if (((MaterialVulkan*)material)->hasDefine(Material::ShaderType::VS, "#define TEXTCOORD "))
+	{
+		VkDescriptorSetLayoutBinding layoutBinding = {};
+		layoutBinding.binding = TEXTCOORD;
+		layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		layoutBinding.descriptorCount = 1;
+		layoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+		layoutBinding.pImmutableSamplers = nullptr;
+
+		layoutBindings.push_back(layoutBinding);
+	}
+
+	if (((MaterialVulkan*)material)->hasDefine(Material::ShaderType::VS, "#define TRANSLATION "))
+	{
+		VkDescriptorSetLayoutBinding layoutBinding = {};
+		layoutBinding.binding = TRANSLATION;
+		layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		layoutBinding.descriptorCount = 1;
+		layoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+		layoutBinding.pImmutableSamplers = nullptr;
+
+		layoutBindings.push_back(layoutBinding);
+	}
+
+	if (((MaterialVulkan*)material)->hasDefine(Material::ShaderType::VS, "#define DIFFUSE_TINT "))
+	{
+		VkDescriptorSetLayoutBinding layoutBinding = {};
+		layoutBinding.binding = DIFFUSE_TINT;
+		layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		layoutBinding.descriptorCount = 1;
+		layoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+		layoutBinding.pImmutableSamplers = nullptr;
+
+		layoutBindings.push_back(layoutBinding);
+	}
+
+	// Pixel shader slots
+	if (((MaterialVulkan*)material)->hasDefine(Material::ShaderType::PS, "#define DIFFUSE_TINT "))
+	{
+		VkDescriptorSetLayoutBinding layoutBinding = {};
+		layoutBinding.binding = DIFFUSE_TINT;
+		layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		layoutBinding.descriptorCount = 1;
+		layoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+		layoutBinding.pImmutableSamplers = nullptr;
+
+		layoutBindings.push_back(layoutBinding);
+	}
+
+	if (((MaterialVulkan*)material)->hasDefine(Material::ShaderType::PS, "#define DIFFUSE_SLOT "))
+	{
+		VkDescriptorSetLayoutBinding layoutBinding = {};
+		layoutBinding.binding = DIFFUSE_SLOT;
+		layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;	// todo: correct?
+		layoutBinding.descriptorCount = 1;
+		layoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+		layoutBinding.pImmutableSamplers = nullptr;
+
+		layoutBindings.push_back(layoutBinding);
+	}
+
+	// todo: binding for texture?
+
+	// Create layout
 	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
 	descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 	descriptorSetLayoutCreateInfo.pNext = nullptr;
 	descriptorSetLayoutCreateInfo.flags = 0;
-	descriptorSetLayoutCreateInfo.bindingCount = 1;
-	descriptorSetLayoutCreateInfo.pBindings = &layoutBinding;
+	descriptorSetLayoutCreateInfo.bindingCount = layoutBindings.size();
+	descriptorSetLayoutCreateInfo.pBindings = &layoutBindings[0];
 
 	VkResult result = vkCreateDescriptorSetLayout(renderer->getDevice(), &descriptorSetLayoutCreateInfo, nullptr, &vertexDataSetLayout);
 	if (result != VK_SUCCESS)
 		throw std::runtime_error("Failed to create descriptor set layout.");
-
-	// todo: create additional bindings according to the material used
 }
 
 void TechniqueVulkan::createPipeline()

@@ -62,6 +62,8 @@ public:
 
 	void setRenderer(VulkanRenderer* renderer);
 
+	// Returns true if the defines for shaderType includes searchString
+	bool hasDefine(Material::ShaderType shaderType, std::string searchString);
 private:
 	VulkanRenderer* renderer;	// Pointer to the renderer that created this material
 	std::map<unsigned int, ConstantBuffer*> constantBuffers;

@@ -14,7 +14,7 @@ public:
 	RenderState* getRenderState() { return renderState; };
 	virtual void enable(Renderer* renderer);
 protected:
-	Material* material = nullptr;
-	RenderState* renderState = nullptr;
+	Material* material;
+	RenderState* renderState;
 };
 

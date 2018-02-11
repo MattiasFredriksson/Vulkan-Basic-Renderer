@@ -55,3 +55,16 @@ void MaterialVulkan::setRenderer(VulkanRenderer* renderer)
 {
 	this->renderer = renderer;
 }
+
+bool MaterialVulkan::hasDefine(Material::ShaderType shaderType, std::string searchString)
+{
+	size_t size = shaderDefines.size();
+
+	std::set<std::string>::iterator it;
+	for (std::string str : shaderDefines[shaderType])
+	{
+		if (str.find(searchString) != std::string::npos)
+			return true;
+	}
+	return false;
+}
