@@ -1,13 +1,13 @@
 
 Issues:
 
-ImageViews+SurfaceKHR destruction isn't working properly
+ImageViews+SurfaceKHR destruction isn't working properly (due to images not created properly?)
 Remove the gatherMemoryInfo() func commented in VulkanConstruct
 
 Todo:
 
-Vertex attributes
-Images
+Vertex attributes (complete?)
+Images (ill start looking in to it later today /M)
 Shader parsing/loading
 Render commands
 ...
