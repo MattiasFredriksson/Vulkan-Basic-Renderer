@@ -392,7 +392,7 @@ uint32_t VulkanRenderer::bindPhysicalMemory(VkBuffer buffer, uint32_t size, Memo
 	return freeOffset;
 }
 
-void VulkanRenderer::transferBufferData(VkBuffer buffer, const void* data, uint32_t size, uint32_t offset)
+void VulkanRenderer::transferBufferData(VkBuffer buffer, const void* data, size_t size, size_t offset)
 {
 	updateStagingBuffer(data, size);
 
@@ -464,12 +464,6 @@ unsigned int VulkanRenderer::getHeight()
 	return height;
 }
 
-void VulkanRenderer::createStagingBuffer()
-{
-	stagingBuffer = createBuffer(device, STORAGE_SIZE[MemoryPool::STAGING_BUFFER], VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
-	memPool[MemoryPool::STAGING_BUFFER].handle = allocPhysicalMemory(device, physicalDevice, stagingBuffer, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, true);
-}
-
 void VulkanRenderer::updateStagingBuffer(const void* data, uint32_t size)
 {
 	if (size > STORAGE_SIZE[MemoryPool::STAGING_BUFFER])
@@ -484,6 +478,12 @@ void VulkanRenderer::updateStagingBuffer(const void* data, uint32_t size)
 	memcpy(bufferContents, data, size);
 
 	vkUnmapMemory(device, memPool[MemoryPool::STAGING_BUFFER].handle);
+}
+
+void VulkanRenderer::createStagingBuffer()
+{
+	stagingBuffer = createBuffer(device, STORAGE_SIZE[MemoryPool::STAGING_BUFFER], VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+	memPool[MemoryPool::STAGING_BUFFER].handle = allocPhysicalMemory(device, physicalDevice, stagingBuffer, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, true);
 }
 
 void VulkanRenderer::allocateStorageMemory(MemoryPool type, uint32_t size, VkFlags usage)

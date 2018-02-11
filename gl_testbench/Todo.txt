@@ -5,7 +5,6 @@ ImageViews+SurfaceKHR destruction isn't working properly
 
 Todo:
 
-Buffers
 Vertex attributes
 Images
 Shader parsing/loading

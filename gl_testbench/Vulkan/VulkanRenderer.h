@@ -73,7 +73,7 @@ public:
 
 	/* Bind a physical memory partition on the device to the buffer from the specific memory pool. */
 	uint32_t bindPhysicalMemory(VkBuffer buffer, uint32_t size, MemoryPool memPool);
-	void transferBufferData(VkBuffer buffer, const void* data, uint32_t size, uint32_t offset);
+	void transferBufferData(VkBuffer buffer, const void* data, size_t size, size_t offset);
 
 	VkSurfaceFormatKHR getSwapchainFormat();
 
