@@ -3,11 +3,9 @@
 
 TechniqueVulkan::TechniqueVulkan(Material* m, RenderState* r) : Technique(m, r)
 {
-	// Create render pass
-	
-	// Create descriptor set
-
-	// Create pipeline
+	createRenderPass();
+	createDescriptorSet();
+	createPipeline();
 }
 
 TechniqueVulkan::~TechniqueVulkan()
