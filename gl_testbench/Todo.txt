@@ -1,0 +1,13 @@
+
+Issues:
+
+ImageViews+SurfaceKHR destruction isn't working properly
+Remove the gatherMemoryInfo() func commented in VulkanConstruct
+
+Todo:
+
+Vertex attributes
+Images
+Shader parsing/loading
+Render commands
+...

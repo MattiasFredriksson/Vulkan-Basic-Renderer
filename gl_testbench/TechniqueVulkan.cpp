@@ -229,8 +229,8 @@ void TechniqueVulkan::createPipeline()
 	VkViewport viewport = {};
 	viewport.x = 0.0f;
 	viewport.y = 0.0f;
-	viewport.width = renderer->getWidth();
-	viewport.height = renderer->getHeight();
+	viewport.width = (float)renderer->getWidth();
+	viewport.height = (float)renderer->getHeight();
 	viewport.minDepth = 0.0f;
 	viewport.maxDepth = 1.0f;
 

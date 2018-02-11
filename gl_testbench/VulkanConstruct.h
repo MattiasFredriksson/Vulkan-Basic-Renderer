@@ -3,11 +3,8 @@
 #include "vulkan\vulkan.h"
 #include <assert.h>
 #include <algorithm>
-#include "vulkan\VulkanRenderer.h"
 
 #pragma region Inline and type defs
-
-#define PRINT_MEMORY_INFO true		// Enable to write info on memory types to cout
 
 #define ALLOC_QUERY(fn, vec, ...) { unsigned int count=0; fn(__VA_ARGS__, &count, nullptr); vec.resize(count); fn(__VA_ARGS__, &count, vec.data()); }
 #define ALLOC_QUERY_ASSERT(result, fn, vec, ...) { unsigned int count=0; fn(__VA_ARGS__, &count, nullptr); vec.resize(count); result = fn(__VA_ARGS__, &count, vec.data()); assert(result == VK_SUCCESS); }
@@ -67,7 +64,11 @@ namespace vk
 }
 int choosePhysicalDevice(VkInstance &instance, VkSurfaceKHR &surface, vk::isDeviceSuitable deviceSpec, VkQueueFlags queueSupportReq, VkPhysicalDevice &result);
 
-void gatherMemoryInfo(VkPhysicalDevice& physicalDevice, std::vector<VulkanRenderer::MemoryTypeInfo>& memoryInfo);
+/* Memory */
+
+VkBuffer createBuffer(VkDevice device, size_t byte_size, VkBufferUsageFlags usage, uint32_t queueCount = 0, uint32_t *queueFamilyIndices = nullptr);
+VkDeviceMemory allocPhysicalMemory(VkDevice device, VkPhysicalDevice physicalDevice, VkBuffer buffer, VkMemoryPropertyFlags properties, bool bindToBuffer = false);
+VkDeviceMemory allocPhysicalMemory(VkDevice device, VkPhysicalDevice physicalDevice, VkMemoryRequirements requirements, VkMemoryPropertyFlags properties);
 
 #ifdef VULKAN_DEVICE_IMPLEMENTATION
 
@@ -251,10 +252,105 @@ int choosePhysicalDevice(VkInstance &instance, VkSurfaceKHR &surface, vk::isDevi
 	return dev.index;
 }
 
+#pragma region Memory
+
+/* Create a vulkan buffer of specific byte size and type.
+byte_size		<<	Byte size of the buffer.
+return			>>	The vertex buffer handle.
+*/
+VkBuffer createBuffer(VkDevice device, size_t byte_size, VkBufferUsageFlags usage, uint32_t queueCount, uint32_t *queueFamilyIndices)
+{
+	VkBufferCreateInfo bufferInfo = {};
+	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bufferInfo.size = byte_size;
+	bufferInfo.flags = 0;
+	bufferInfo.usage = usage;
+	if (queueCount <= 1)
+		// Indicates it'll only be accessed by a single queue at a time (presumably only use this option if it will only be used by one queue)
+		bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	else
+		// Indicate multiple queues will concurrently use the buffer.
+		bufferInfo.sharingMode = VK_SHARING_MODE_CONCURRENT;
+	// Since exclusive the queue params are redundant:
+	bufferInfo.queueFamilyIndexCount = queueCount;
+	bufferInfo.pQueueFamilyIndices = queueFamilyIndices;
+
+	VkBuffer buffer;
+	if (vkCreateBuffer(device, &bufferInfo, nullptr, &buffer) != VK_SUCCESS) {
+		throw std::runtime_error("Failed to create buffer!");
+	}
+	return buffer;
+}
+/* Find a memory type on the device mathcing the specification
+*/
+uint32_t findMemoryType(VkPhysicalDevice physicalDevice, uint32_t typeFilter, VkMemoryPropertyFlags properties) {
+
+	VkPhysicalDeviceMemoryProperties memProperties;
+	vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperties);
+
+	// Iterate the different types matching the filter mask and find one that matches the properties:
+	for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
+		if ((typeFilter & (1 << i)) && matchFlag(memProperties.memoryTypes[i].propertyFlags, properties)) {
+			return i;
+		}
+	}
+	throw std::runtime_error("failed to find suitable memory type!");
+}
+/* Allocate physical memory on the device of specific parameters.
+device			<< Handle to the device.
+physicalDevice	<< Handle to the physical device.
+buffer			<< Related buffer.
+requirements	<< The memory requirements.
+properties		<< The properties the memory should have (dependent on buffer and how it's used).
+*/
+VkDeviceMemory allocPhysicalMemory(VkDevice device, VkPhysicalDevice physicalDevice, VkMemoryRequirements requirements, VkMemoryPropertyFlags properties)
+{
+	VkMemoryAllocateInfo allocInfo = {};
+	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	allocInfo.allocationSize = requirements.size;
+	allocInfo.memoryTypeIndex = findMemoryType(physicalDevice, requirements.memoryTypeBits, properties);
+
+	//Allocate:
+	// *Note that number allocations is limited, hence a custom allocator is required to allocate chunks for multiple buffers. 
+	// *One possible solution is to use VulkanMemoryAllocator library.
+	VkDeviceMemory mem;
+	if (vkAllocateMemory(device, &allocInfo, nullptr, &mem) != VK_SUCCESS) {
+		throw std::runtime_error("failed to allocate vertex buffer memory!");
+	}
+	return mem;
+}
+/* Allocate physical memory on the device for a buffer object.
+device			<< Handle to the device.
+physicalDevice	<< Handle to the physical device.
+buffer			<< Related buffer.
+properties		<< The properties the memory should have (dependent on buffer and how it's used).
+bindToBuffer	<< If the memory should be bound to the buffer
+*/
+VkDeviceMemory allocPhysicalMemory(VkDevice device, VkPhysicalDevice physicalDevice, VkBuffer buffer, VkMemoryPropertyFlags properties, bool bindToBuffer)
+{
+	VkMemoryRequirements memRequirements;
+	vkGetBufferMemoryRequirements(device, buffer, &memRequirements);
+
+	//Allocate:
+	// *Note that the number of allocations are limited!
+	VkDeviceMemory mem = allocPhysicalMemory(device, physicalDevice, memRequirements, properties);
+	// Bind to buffer.
+	if(bindToBuffer)
+		vkBindBufferMemory(device, buffer, mem, 0);
+	return mem;
+}
+
+/* To be removed:
+struct MemoryTypeInfo
+{
+	bool deviceLocal;
+	bool hostVisible;
+	bool hostCoherent;
+};
 /* Gets info on memory types for a device
 physicalDevice		<<	Vulkan device to consider
 stagingMemoryType	>>	Array of memory types to be filled with information
-*/
+
 void gatherMemoryInfo(VkPhysicalDevice& physicalDevice, std::vector<VulkanRenderer::MemoryTypeInfo>& memoryInfo)
 {
 	VkPhysicalDeviceMemoryProperties memProperty;		// Holds memory properties of selected physical device
@@ -303,5 +399,8 @@ void gatherMemoryInfo(VkPhysicalDevice& physicalDevice, std::vector<VulkanRender
 		}
 	}
 }
+*/
+
+#pragma endregion
 
 #endif

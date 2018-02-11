@@ -21,7 +21,6 @@ private:
 
 	VulkanRenderer* _renderHandle;
 	VkBuffer _bufferHandle;
-	VkDeviceMemory _memHandle;
-	size_t totalSize;
+	size_t memSize;
 };
 

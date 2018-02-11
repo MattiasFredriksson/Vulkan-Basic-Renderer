@@ -17,7 +17,8 @@ private:
 	VulkanRenderer* renderer;
 
 	std::string name;
-	uint32_t location, poolOffset, memSize;
+	uint32_t location;
+	size_t poolOffset, memSize;
 
 	VkBuffer buffer;
 };
