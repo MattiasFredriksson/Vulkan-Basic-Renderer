@@ -3,11 +3,8 @@
 #include "vulkan\vulkan.h"
 #include <assert.h>
 #include <algorithm>
-#include "vulkan\VulkanRenderer.h"
 
 #pragma region Inline and type defs
-
-#define PRINT_MEMORY_INFO true		// Enable to write info on memory types to cout
 
 #define ALLOC_QUERY(fn, vec, ...) { unsigned int count=0; fn(__VA_ARGS__, &count, nullptr); vec.resize(count); fn(__VA_ARGS__, &count, vec.data()); }
 #define ALLOC_QUERY_ASSERT(result, fn, vec, ...) { unsigned int count=0; fn(__VA_ARGS__, &count, nullptr); vec.resize(count); result = fn(__VA_ARGS__, &count, vec.data()); assert(result == VK_SUCCESS); }
@@ -72,8 +69,6 @@ int choosePhysicalDevice(VkInstance &instance, VkSurfaceKHR &surface, vk::isDevi
 VkBuffer createBuffer(VkDevice device, size_t byte_size, VkBufferUsageFlags usage, uint32_t queueCount = 0, uint32_t *queueFamilyIndices = nullptr);
 VkDeviceMemory allocPhysicalMemory(VkDevice device, VkPhysicalDevice physicalDevice, VkBuffer buffer, VkMemoryPropertyFlags properties, bool bindToBuffer = false);
 VkDeviceMemory allocPhysicalMemory(VkDevice device, VkPhysicalDevice physicalDevice, VkMemoryRequirements requirements, VkMemoryPropertyFlags properties);
-
-void gatherMemoryInfo(VkPhysicalDevice& physicalDevice, std::vector<VulkanRenderer::MemoryTypeInfo>& memoryInfo);
 
 #ifdef VULKAN_DEVICE_IMPLEMENTATION
 
@@ -345,11 +340,17 @@ VkDeviceMemory allocPhysicalMemory(VkDevice device, VkPhysicalDevice physicalDev
 	return mem;
 }
 
-
+/* To be removed:
+struct MemoryTypeInfo
+{
+	bool deviceLocal;
+	bool hostVisible;
+	bool hostCoherent;
+};
 /* Gets info on memory types for a device
 physicalDevice		<<	Vulkan device to consider
 stagingMemoryType	>>	Array of memory types to be filled with information
-*/
+
 void gatherMemoryInfo(VkPhysicalDevice& physicalDevice, std::vector<VulkanRenderer::MemoryTypeInfo>& memoryInfo)
 {
 	VkPhysicalDeviceMemoryProperties memProperty;		// Holds memory properties of selected physical device
@@ -398,6 +399,7 @@ void gatherMemoryInfo(VkPhysicalDevice& physicalDevice, std::vector<VulkanRender
 		}
 	}
 }
+*/
 
 #pragma endregion
 

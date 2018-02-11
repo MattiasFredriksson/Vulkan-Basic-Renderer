@@ -149,10 +149,7 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 	chosenPhysicalDevice = choosePhysicalDevice(instance, windowSurface, vk::specifyAnyDedicatedDevice, queueSupport, physicalDevice);
 	if (chosenPhysicalDevice < 0)
 		throw std::runtime_error("No available physical device matched specification.");
-
-	// Select the memory types to use for allocations
-	gatherMemoryInfo(physicalDevice, memoryTypes);
-
+	
 	/* Create logical device
 	*/
 
@@ -373,13 +370,13 @@ VkPhysicalDevice VulkanRenderer::getPhysical()
 	return physicalDevice;
 }
 
-uint32_t VulkanRenderer::bindPhysicalMemory(VkBuffer buffer, uint32_t size, MemoryPool pool)
+size_t VulkanRenderer::bindPhysicalMemory(VkBuffer buffer, size_t size, MemoryPool pool)
 {
 	// Adjust the memory offset to achieve proper alignment
 	VkMemoryRequirements memoryRequirements;
 	vkGetBufferMemoryRequirements(device, buffer, &memoryRequirements);
 
-	uint32_t freeOffset = memPool[pool].freeOffset;
+	size_t freeOffset = memPool[pool].freeOffset;
 	if (freeOffset % memoryRequirements.alignment != 0)
 		freeOffset += memoryRequirements.alignment - (freeOffset % memoryRequirements.alignment);
 
@@ -464,7 +461,7 @@ unsigned int VulkanRenderer::getHeight()
 	return height;
 }
 
-void VulkanRenderer::updateStagingBuffer(const void* data, uint32_t size)
+void VulkanRenderer::updateStagingBuffer(const void* data, size_t size)
 {
 	if (size > STORAGE_SIZE[MemoryPool::STAGING_BUFFER])
 		throw std::runtime_error("The data requested does not fit in the staging buffer.");
@@ -486,7 +483,7 @@ void VulkanRenderer::createStagingBuffer()
 	memPool[MemoryPool::STAGING_BUFFER].handle = allocPhysicalMemory(device, physicalDevice, stagingBuffer, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, true);
 }
 
-void VulkanRenderer::allocateStorageMemory(MemoryPool type, uint32_t size, VkFlags usage)
+void VulkanRenderer::allocateStorageMemory(MemoryPool type, size_t size, VkFlags usage)
 {
 	VkBuffer dummy = createBuffer(device, size, usage);
 	memPool[type].handle = allocPhysicalMemory(device, physicalDevice, dummy, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);

@@ -2,6 +2,7 @@
 #include <vulkan/vulkan.h>
 #include <stdexcept>
 #include "../VulkanConstruct.h"
+#include "VulkanRenderer.h"
 
 VertexBufferVulkan::VertexBufferVulkan(VulkanRenderer *renderer, size_t size, VertexBuffer::DATA_USAGE usage)
 	: _renderHandle(renderer), _bufferHandle(NULL), memSize(size)

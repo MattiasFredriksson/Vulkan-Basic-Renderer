@@ -20,7 +20,7 @@ const uint32_t STORAGE_SIZE[] = { 256, 1024*1024, 1024 * 1024, 1024 * 1024 };
 struct DevMemoryAllocation
 {
 	VkDeviceMemory handle;	// The device memory handle
-	uint32_t freeOffset;	// Offset to the next free area in the storage memory
+	size_t freeOffset;	// Offset to the next free area in the storage memory
 
 	DevMemoryAllocation() : handle(NULL), freeOffset(0) {}
 };
@@ -35,12 +35,6 @@ enum MemoryPool
 class VulkanRenderer : public Renderer
 {
 public:
-	struct MemoryTypeInfo
-	{
-		bool deviceLocal;
-		bool hostVisible;
-		bool hostCoherent;
-	};
 
 	VulkanRenderer();
 	~VulkanRenderer();
@@ -72,7 +66,7 @@ public:
 	VkPhysicalDevice getPhysical();
 
 	/* Bind a physical memory partition on the device to the buffer from the specific memory pool. */
-	uint32_t bindPhysicalMemory(VkBuffer buffer, uint32_t size, MemoryPool memPool);
+	size_t bindPhysicalMemory(VkBuffer buffer, size_t size, MemoryPool memPool);
 	void transferBufferData(VkBuffer buffer, const void* data, size_t size, size_t offset);
 
 	VkSurfaceFormatKHR getSwapchainFormat();
@@ -81,11 +75,9 @@ public:
 	unsigned int getHeight();
 
 private:
-	std::vector<MemoryTypeInfo> memoryTypes;
-
 	void createStagingBuffer();
-	void updateStagingBuffer(const void* data, uint32_t size);	// Writes memory from data into the staging buffer
-	void allocateStorageMemory(MemoryPool type, uint32_t size, VkFlags usage);	// Allocates memory pool data
+	void updateStagingBuffer(const void* data, size_t size);	// Writes memory from data into the staging buffer
+	void allocateStorageMemory(MemoryPool type, size_t size, VkFlags usage);	// Allocates memory pool data
 
 	VkInstance instance;
 
