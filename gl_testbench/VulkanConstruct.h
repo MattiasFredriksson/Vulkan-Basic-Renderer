@@ -3,9 +3,11 @@
 #include "vulkan\vulkan.h"
 #include <assert.h>
 #include <algorithm>
+#include <vector>
 
 #pragma region Inline and type defs
 
+#define ALLOC_QUERY_NOPARAM(fn, vec) { unsigned int count=0; fn(&count, nullptr); vec.resize(count); fn(&count, vec.data()); }
 #define ALLOC_QUERY(fn, vec, ...) { unsigned int count=0; fn(__VA_ARGS__, &count, nullptr); vec.resize(count); fn(__VA_ARGS__, &count, vec.data()); }
 #define ALLOC_QUERY_ASSERT(result, fn, vec, ...) { unsigned int count=0; fn(__VA_ARGS__, &count, nullptr); vec.resize(count); result = fn(__VA_ARGS__, &count, vec.data()); assert(result == VK_SUCCESS); }
 
@@ -64,10 +66,14 @@ namespace vk
 }
 int choosePhysicalDevice(VkInstance &instance, VkSurfaceKHR &surface, vk::isDeviceSuitable deviceSpec, VkQueueFlags queueSupportReq, VkPhysicalDevice &result);
 
+std::vector<char*> checkValidationLayerSupport(char** validationLayers, size_t num_layer);
+
+
 /* Memory */
 
 VkBuffer createBuffer(VkDevice device, size_t byte_size, VkBufferUsageFlags usage, uint32_t queueCount = 0, uint32_t *queueFamilyIndices = nullptr);
 VkImage createTexture2D(VkDevice device, uint32_t width, uint32_t height, VkFormat format = VK_FORMAT_R8G8B8A8_UNORM, VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL);
+VkImageView createImageView(VkDevice device, VkImage image, VkFormat format, VkImageViewType viewType = VK_IMAGE_VIEW_TYPE_2D);
 
 VkDeviceMemory allocPhysicalMemory(VkDevice device, VkPhysicalDevice physicalDevice, VkBuffer buffer, VkMemoryPropertyFlags properties, bool bindToBuffer = false);
 VkDeviceMemory allocPhysicalMemory(VkDevice device, VkPhysicalDevice physicalDevice, VkImage image, VkMemoryPropertyFlags properties, bool bindToImage = false);
@@ -80,8 +86,6 @@ void endSingleCommand_Wait(VkDevice device, VkQueue queue, VkCommandPool command
 
 
 #ifdef VULKAN_DEVICE_IMPLEMENTATION
-
-#include <vector>
 
 
 VkPresentModeKHR chooseSwapPresentMode(VkPhysicalDevice &device, VkSurfaceKHR &surface, VkPresentModeKHR *prefered_modes, size_t num_prefered) {
@@ -261,6 +265,34 @@ int choosePhysicalDevice(VkInstance &instance, VkSurfaceKHR &surface, vk::isDevi
 	return dev.index;
 }
 
+
+/* Find validation layers that are supported.
+validationLayers	<<	Set of validation layers requested.
+num_layer			<<	Number of layers in the set.
+*/
+std::vector<char*> checkValidationLayerSupport(char** validationLayers, size_t num_layer) {
+	std::vector<VkLayerProperties> availableLayers;
+	ALLOC_QUERY_NOPARAM(vkEnumerateInstanceLayerProperties, availableLayers);
+
+	std::vector<char*> available;
+	available.reserve(num_layer);
+	for (size_t i = 0; i < num_layer; i++) {
+		bool layerFound = false;
+
+		for (const auto& layerProperties : availableLayers) {
+			if (strcmp(validationLayers[i], layerProperties.layerName) == 0) {
+				layerFound = true;
+				break;
+			}
+		}
+
+		if (layerFound)
+			available.push_back(validationLayers[i]);
+	}
+
+	return available;
+}
+
 #pragma region Memory
 
 /* Create a vulkan buffer of specific byte size and type.
@@ -321,6 +353,27 @@ VkImage createTexture2D(VkDevice device, uint32_t width, uint32_t height, VkForm
 		throw std::runtime_error("failed to create image!");
 	}
 	return texture;
+}
+
+VkImageView createImageView(VkDevice device, VkImage image, VkFormat format, VkImageViewType viewType) {
+	VkImageViewCreateInfo viewInfo = {};
+	viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	viewInfo.image = image;
+	viewInfo.viewType = viewType;
+	viewInfo.format = format;
+	viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	viewInfo.subresourceRange.baseMipLevel = 0;
+	viewInfo.subresourceRange.levelCount = 1;
+	viewInfo.subresourceRange.baseArrayLayer = 0;
+	viewInfo.subresourceRange.layerCount = 1;
+
+	VkImageView imageView;
+	VkResult result = vkCreateImageView(device, &viewInfo, nullptr, &imageView);
+	if (result != VK_SUCCESS) {
+		throw std::runtime_error("failed to create texture image view!");
+	}
+
+	return imageView;
 }
 
 void checkValidImageFormats(VkPhysicalDevice device)

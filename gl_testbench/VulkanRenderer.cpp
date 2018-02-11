@@ -73,6 +73,7 @@ Technique* VulkanRenderer::makeTechnique(Material* m, RenderState* r)
 	return (Technique*) new TechniqueVulkan(m, r, this);
 }
 
+
 int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 {
 	this->width = width;
@@ -90,14 +91,16 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 	applicationInfo.apiVersion = 0;		// setting to 1 causes error when creating instance
 
 	char* enabledLayers[] = { "VK_LAYER_LUNARG_standard_validation" };
+	std::vector<char*> availableLayers = checkValidationLayerSupport(enabledLayers, sizeof(enabledLayers) / sizeof(char*));
+
 	char* enabledExtensions[] = { "VK_KHR_surface", "VK_KHR_win32_surface", "VK_EXT_debug_report" };
 	VkInstanceCreateInfo instanceCreateInfo = {};
 	instanceCreateInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
 	instanceCreateInfo.pNext = nullptr;
 	instanceCreateInfo.flags = 0;
 	instanceCreateInfo.pApplicationInfo = &applicationInfo;
-	instanceCreateInfo.enabledLayerCount = 1;
-	instanceCreateInfo.ppEnabledLayerNames = enabledLayers;
+	instanceCreateInfo.enabledLayerCount = (uint32_t)availableLayers.size();
+	instanceCreateInfo.ppEnabledLayerNames = availableLayers.data();
 	instanceCreateInfo.enabledExtensionCount = 3;
 	instanceCreateInfo.ppEnabledExtensionNames = enabledExtensions;
 
@@ -270,28 +273,7 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 	// Create image views for the swapchain images
 	swapchainImageViews.resize(swapchainImages.size());
 	for (int i = 0; i < swapchainImages.size(); ++i)
-	{
-		VkImageViewCreateInfo imageViewCreateInfo = {};
-		imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-		imageViewCreateInfo.pNext = nullptr;
-		imageViewCreateInfo.flags = 0;
-		imageViewCreateInfo.image = swapchainImages[i];
-		imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-		imageViewCreateInfo.format = swapchainCreateInfo.imageFormat;
-		imageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-		imageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-		imageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-		imageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-		imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
-		imageViewCreateInfo.subresourceRange.levelCount = 1;
-		imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
-		imageViewCreateInfo.subresourceRange.layerCount = 1;
-
-		result = vkCreateImageView(device, &imageViewCreateInfo, nullptr, &swapchainImageViews[i]);
-		if (result != VK_SUCCESS)
-			throw std::runtime_error("Failed to create image view");
-	}
+		swapchainImageViews[i] = createImageView(device, swapchainImages[i], swapchainCreateInfo.imageFormat);
 
 	// Create staging command pool
 	VkCommandPoolCreateInfo commandPoolCreateInfo = {};
@@ -377,22 +359,44 @@ VkPhysicalDevice VulkanRenderer::getPhysical()
 	return physicalDevice;
 }
 
-size_t VulkanRenderer::bindPhysicalMemory(VkBuffer buffer, size_t size, MemoryPool pool)
+
+void padAlignment(size_t &allocOffset, VkMemoryRequirements &memReq)
+{
+	if (allocOffset % memReq.alignment != 0)
+		allocOffset += memReq.alignment - (allocOffset % memReq.alignment);
+}
+size_t VulkanRenderer::bindPhysicalMemory(VkBuffer buffer, MemoryPool pool)
 {
 	// Adjust the memory offset to achieve proper alignment
-	VkMemoryRequirements memoryRequirements;
-	vkGetBufferMemoryRequirements(device, buffer, &memoryRequirements);
+	VkMemoryRequirements memReq;
+	vkGetBufferMemoryRequirements(device, buffer, &memReq);
 
 	size_t freeOffset = memPool[pool].freeOffset;
-	if (freeOffset % memoryRequirements.alignment != 0)
-		freeOffset += memoryRequirements.alignment - (freeOffset % memoryRequirements.alignment);
+	padAlignment(freeOffset, memReq);
 
 	VkResult result = vkBindBufferMemory(device, buffer, memPool[pool].handle, freeOffset);
 	if (result != VK_SUCCESS)
 		throw std::runtime_error("Failed to bind buffer to memory.");
 
 	// Update offset
-	memPool[pool].freeOffset = freeOffset + size;
+	memPool[pool].freeOffset = freeOffset + memReq.size;
+	return freeOffset;
+}
+size_t VulkanRenderer::bindPhysicalMemory(VkImage img, MemoryPool pool)
+{
+	// Adjust the memory offset to achieve proper alignment
+	VkMemoryRequirements memReq;
+	vkGetImageMemoryRequirements(device, img, &memReq);
+
+	size_t freeOffset = memPool[pool].freeOffset;
+	padAlignment(freeOffset, memReq);
+
+	VkResult result = vkBindImageMemory(device, img, memPool[pool].handle, freeOffset);
+	if (result != VK_SUCCESS)
+		throw std::runtime_error("Failed to bind buffer to memory.");
+
+	// Update offset
+	memPool[pool].freeOffset = freeOffset + memReq.size;
 	return freeOffset;
 }
 
@@ -414,29 +418,27 @@ void VulkanRenderer::transferBufferData(VkBuffer buffer, const void* data, size_
 	endSingleCommand_Wait(device, queue, stagingCommandPool, cmdBuffer);
 }
 
-void VulkanRenderer::transferImageData(VkImage image, const void* data, size_t size, size_t offset)
+void VulkanRenderer::transferImageData(VkImage image, const void* data, glm::uvec3 img_size, uint32_t pixel_bytes, glm::ivec3 offset)
 {
+	uint32_t size = img_size.x * img_size.y * img_size.z * pixel_bytes;
 	updateStagingBuffer(data, size);
 
 	VkCommandBuffer cmdBuffer = beginSingleCommand(device, stagingCommandPool);
 
 	// Record the copying command
 	VkBufferImageCopy region = {};
-	region.bufferOffset = 0;
-	region.bufferRowLength = 0;
-	region.bufferImageHeight = 0;
+	region.bufferOffset = 0;		// Initial padding
+	region.bufferRowLength = 0;		// Row padding
+	region.bufferImageHeight = 0;	// Column padding
 
 	region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	region.imageSubresource.mipLevel = 0;
 	region.imageSubresource.baseArrayLayer = 0;
 	region.imageSubresource.layerCount = 1;
 
-	region.imageOffset = { 0, 0, 0 };
-	region.imageExtent = {
-		width,
-		height,
-		1
-	};
+	region.imageOffset = { offset.x, offset.y, offset.z };
+	region.imageExtent = { img_size.x, img_size.y, img_size.z };
+
 	vkCmdCopyBufferToImage(
 		cmdBuffer,
 		stagingBuffer,

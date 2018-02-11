@@ -9,7 +9,7 @@ VertexBufferVulkan::VertexBufferVulkan(VulkanRenderer *renderer, size_t size, Ve
 {
 	// Create buffer and allocater physical memory for it
 	_bufferHandle = createBuffer(_renderHandle->getDevice(), size, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
-	renderer->bindPhysicalMemory(_bufferHandle, memSize, MemoryPool::VERTEX_BUFFER);
+	renderer->bindPhysicalMemory(_bufferHandle, MemoryPool::VERTEX_BUFFER);
 }
 
 VertexBufferVulkan::~VertexBufferVulkan()

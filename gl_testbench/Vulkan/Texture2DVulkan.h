@@ -11,6 +11,8 @@ class VulkanRenderer;
 class Texture2DVulkan :
 	public Texture2D
 {
+private:
+	void destroyImg();
 public:
 	Texture2DVulkan(VulkanRenderer *renderer);
 	~Texture2DVulkan();
@@ -20,5 +22,6 @@ public:
 
 	VulkanRenderer *_renderHandle;
 	VkImage _imageHandle;
+	VkImageView _viewHandle;
 };
 

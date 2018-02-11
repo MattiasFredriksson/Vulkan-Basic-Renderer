@@ -68,10 +68,11 @@ public:
 	VkPhysicalDevice getPhysical();
 
 	/* Bind a physical memory partition on the device to the buffer from the specific memory pool. */
-	size_t bindPhysicalMemory(VkBuffer buffer, size_t size, MemoryPool memPool);
+	size_t bindPhysicalMemory(VkBuffer buffer, MemoryPool memPool);
+	size_t bindPhysicalMemory(VkImage img, MemoryPool pool);
 	/* Transfer data to the specific buffer. */
 	void transferBufferData(VkBuffer buffer, const void* data, size_t size, size_t offset);
-	void transferImageData(VkImage image, const void* data, size_t size, size_t offset);
+	void transferImageData(VkImage image, const void* data, glm::uvec3 img_size, uint32_t pixel_bytes, glm::ivec3 offset = glm::ivec3(0));
 	void transitionImageFormat(VkImage image, VkFormat format, VkImageLayout fromLayout, VkImageLayout toLayout);
 
 	VkSurfaceFormatKHR getSwapchainFormat();
