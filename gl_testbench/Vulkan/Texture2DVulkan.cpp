@@ -39,11 +39,13 @@ int Texture2DVulkan::loadFromFile(std::string filename)
 	size_t bytes; 
 	if (bpp == 3)
 	{
+		//Warning! Might not be supported
 		format = VK_FORMAT_R8G8B8_UNORM;
 		bytes = 3;
 	}
 	else if (bpp == 4)
 	{
+		// Standard support format
 		format = VK_FORMAT_R8G8B8A8_UNORM;
 		bytes = 4;
 	}
