@@ -6,7 +6,7 @@ Remove the gatherMemoryInfo() func commented in VulkanConstruct
 
 Todo:
 
-Vertex attributes (complete?)
+Vertex attributes (complete?, errors are printed)
 Image Samplers
 Shader parsing/loading
 Render commands
