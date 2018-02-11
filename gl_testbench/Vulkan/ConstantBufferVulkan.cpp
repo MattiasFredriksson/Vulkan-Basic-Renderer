@@ -34,7 +34,7 @@ void ConstantBufferVulkan::setData(const void * data, size_t size, Material * m,
 	}
 	else if(memSize < size)
 		throw std::runtime_error("Constant buffer cannot fit the data.");
-	renderer->setConstantBufferData(buffer, data, size, m, location);
+	renderer->transferBufferData(buffer, data, size, 0);
 }
 
 void ConstantBufferVulkan::bind(Material *)

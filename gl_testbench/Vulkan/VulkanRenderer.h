@@ -15,8 +15,7 @@
 #pragma comment(lib,"SDL2main.lib")
 
 // Size in bytes of the memory types used
-#define STAGING_MEMORY_SIZE 256
-#define STORAGE_MEMORY_SIZE (1024 * 1024)
+const uint32_t STORAGE_SIZE[] = { 256, 1024*1024, 1024 * 1024, 1024 * 1024 };
 
 struct DevMemoryAllocation
 {
@@ -74,7 +73,7 @@ public:
 
 	/* Bind a physical memory partition on the device to the buffer from the specific memory pool. */
 	uint32_t bindPhysicalMemory(VkBuffer buffer, uint32_t size, MemoryPool memPool);
-	void setConstantBufferData(VkBuffer buffer, const void* data, uint32_t size, Material * m, unsigned int location);
+	void transferBufferData(VkBuffer buffer, const void* data, uint32_t size, uint32_t offset);
 
 	VkSurfaceFormatKHR getSwapchainFormat();
 
@@ -86,7 +85,7 @@ private:
 
 	void createStagingBuffer();
 	void updateStagingBuffer(const void* data, uint32_t size);	// Writes memory from data into the staging buffer
-	void allocateStorageMemory();	// Used during initialization to find suitable memory type for storage and allocate device memory from it
+	void allocateStorageMemory(MemoryPool type, uint32_t size, VkFlags usage);	// Allocates memory pool data
 
 	VkInstance instance;
 
@@ -112,7 +111,6 @@ private:
 	
 
 	VkBuffer stagingBuffer;			// Buffer to temporarily hold data being transferred to GPU
-	VkMemoryRequirements stagingBufferMemoryRequirement;
 
 	int chosenQueueFamily;		// The queue family to be used
 
