@@ -45,7 +45,7 @@ Texture2D* VulkanRenderer::makeTexture2D()
 }
 Sampler2D* VulkanRenderer::makeSampler2D()
 {
-	return (Sampler2D*) new Sampler2DVulkan();
+	return (Sampler2D*) new Sampler2DVulkan(this);
 }
 RenderState* VulkanRenderer::makeRenderState()
 {

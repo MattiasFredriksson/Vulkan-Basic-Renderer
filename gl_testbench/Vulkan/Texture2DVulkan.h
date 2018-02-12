@@ -22,6 +22,7 @@ public:
 
 	VulkanRenderer *_renderHandle;
 	VkImage _imageHandle;
-	VkImageView _viewHandle;
+
+	VkDescriptorImageInfo imageInfo;
 };
 

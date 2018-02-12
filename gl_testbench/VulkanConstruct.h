@@ -74,6 +74,8 @@ std::vector<char*> checkValidationLayerSupport(char** validationLayers, size_t n
 VkBuffer createBuffer(VkDevice device, size_t byte_size, VkBufferUsageFlags usage, uint32_t queueCount = 0, uint32_t *queueFamilyIndices = nullptr);
 VkImage createTexture2D(VkDevice device, uint32_t width, uint32_t height, VkFormat format = VK_FORMAT_R8G8B8A8_UNORM, VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL);
 VkImageView createImageView(VkDevice device, VkImage image, VkFormat format, VkImageViewType viewType = VK_IMAGE_VIEW_TYPE_2D);
+VkSampler createSampler(VkDevice device, VkFilter magFilter = VK_FILTER_LINEAR, VkFilter minFilter = VK_FILTER_LINEAR, 
+	VkSamplerAddressMode wrap_s = VK_SAMPLER_ADDRESS_MODE_REPEAT, VkSamplerAddressMode wrap_t = VK_SAMPLER_ADDRESS_MODE_REPEAT);
 
 VkDeviceMemory allocPhysicalMemory(VkDevice device, VkPhysicalDevice physicalDevice, VkBuffer buffer, VkMemoryPropertyFlags properties, bool bindToBuffer = false);
 VkDeviceMemory allocPhysicalMemory(VkDevice device, VkPhysicalDevice physicalDevice, VkImage image, VkMemoryPropertyFlags properties, bool bindToImage = false);
@@ -84,6 +86,16 @@ VkDeviceMemory allocPhysicalMemory(VkDevice device, VkPhysicalDevice physicalDev
 VkCommandBuffer beginSingleCommand(VkDevice device, VkCommandPool commandPool);
 void endSingleCommand_Wait(VkDevice device, VkQueue queue, VkCommandPool commandPool, VkCommandBuffer commandBuf);
 
+#pragma region Descriptors
+
+/* Write a image descriptor
+*/
+void writeDescriptorStruct(VkWriteDescriptorSet &writeStruct, VkDescriptorSet &descriptorSet, VkDescriptorImageInfo *imageInfo, uint32_t dstBinding, uint32_t dstArrayElem = 0);
+/* Write a image layout binding
+*/
+void writeLayoutBinding(VkDescriptorSetLayoutBinding &layoutBinding, VkShaderStageFlags stage = VK_SHADER_STAGE_FRAGMENT_BIT);
+
+#pragma endregion
 
 #ifdef VULKAN_DEVICE_IMPLEMENTATION
 
@@ -380,6 +392,42 @@ VkImageView createImageView(VkDevice device, VkImage image, VkFormat format, VkI
 	return imageView;
 }
 
+/* Create a simple sampler with the base parameters set
+*/
+VkSampler createSampler(VkDevice device, VkFilter magFilter, VkFilter minFilter, VkSamplerAddressMode wrap_s, VkSamplerAddressMode wrap_t)
+{
+	VkSamplerCreateInfo samplerInfo = {};
+	samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+	samplerInfo.pNext = nullptr;
+	samplerInfo.flags = 0;
+	// Filters
+	samplerInfo.magFilter = magFilter;
+	samplerInfo.minFilter = minFilter;
+	// Wrap mode
+	samplerInfo.addressModeU = wrap_s;
+	samplerInfo.addressModeV = wrap_t;
+	samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+	// Anisotropy
+	samplerInfo.anisotropyEnable = VK_FALSE;
+	samplerInfo.maxAnisotropy = 1.0;
+	//Mipmapping
+	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+	samplerInfo.mipLodBias = 0.0f;
+	samplerInfo.minLod = 0.0f;
+	samplerInfo.maxLod = 0.0f;
+	// Misc
+	samplerInfo.unnormalizedCoordinates = VK_FALSE;
+	samplerInfo.compareEnable = VK_FALSE;
+	samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+
+	VkSampler sampler;
+	VkResult err = vkCreateSampler(device, &samplerInfo, nullptr, &sampler);
+	if (err != VK_SUCCESS) {
+		throw std::runtime_error("failed to create texture sampler!");
+	}
+	return sampler;
+}
 void checkValidImageFormats(VkPhysicalDevice device)
 {
 	const int NUM_FORMAT = 2;
@@ -545,6 +593,33 @@ void endSingleCommand_Wait(VkDevice device, VkQueue queue, VkCommandPool command
 	vkFreeCommandBuffers(device, commandPool, 1, &commandBuf);
 }
 
+
+#pragma endregion
+
+#pragma region Descriptors
+
+/* Fill a combined image sampler to a descriptor set write struct.
+*/
+void writeDescriptorStruct(VkWriteDescriptorSet &writeStruct, VkDescriptorSet &descriptorSet, VkDescriptorImageInfo *imageInfo, uint32_t dstBinding, uint32_t dstArrayElem)
+{
+	writeStruct.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeStruct.dstSet = descriptorSet;
+	writeStruct.dstBinding = dstBinding;
+	writeStruct.dstArrayElement = dstArrayElem;
+	writeStruct.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	writeStruct.descriptorCount = 1;
+	writeStruct.pImageInfo = imageInfo;
+}
+/* Write layout binding
+*/
+void writeLayoutBinding(VkDescriptorSetLayoutBinding &layoutBinding, VkShaderStageFlags stage)
+{
+	layoutBinding.binding = 1;
+	layoutBinding.descriptorCount = 1;
+	layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	layoutBinding.pImmutableSamplers = nullptr;
+	layoutBinding.stageFlags = stage;
+}
 
 #pragma endregion
 
