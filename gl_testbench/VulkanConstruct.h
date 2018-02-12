@@ -72,6 +72,9 @@ std::vector<char*> checkValidationLayerSupport(char** validationLayers, size_t n
 /* Memory */
 
 VkBuffer createBuffer(VkDevice device, size_t byte_size, VkBufferUsageFlags usage, uint32_t queueCount = 0, uint32_t *queueFamilyIndices = nullptr);
+VkVertexInputBindingDescription defineVertexBinding(uint32_t bind_index, uint32_t vertex_bytes, VkVertexInputRate inputRate = VK_VERTEX_INPUT_RATE_VERTEX);
+VkVertexInputAttributeDescription defineVertexAttribute(uint32_t bind_index, uint32_t loc_index, VkFormat format, uint32_t attri_offset);
+
 VkImage createTexture2D(VkDevice device, uint32_t width, uint32_t height, VkFormat format = VK_FORMAT_R8G8B8A8_UNORM, VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL);
 VkImageView createImageView(VkDevice device, VkImage image, VkFormat format, VkImageViewType viewType = VK_IMAGE_VIEW_TYPE_2D);
 VkSampler createSampler(VkDevice device, VkFilter magFilter = VK_FILTER_LINEAR, VkFilter minFilter = VK_FILTER_LINEAR, 
@@ -318,6 +321,8 @@ std::vector<char*> checkValidationLayerSupport(char** validationLayers, size_t n
 
 #pragma region Memory
 
+#pragma region Buffer
+
 /* Create a vulkan buffer of specific byte size and type.
 byte_size		<<	Byte size of the buffer.
 return			>>	The vertex buffer handle.
@@ -345,6 +350,40 @@ VkBuffer createBuffer(VkDevice device, size_t byte_size, VkBufferUsageFlags usag
 	}
 	return buffer;
 }
+
+/* Defines a VkVertexInputBindingDescription from the params. Used to bind (associate) a vertex buffer layout associated with the pipeline.
+bind_index		<<	Binding index for the description and(/or?) buffer.
+vertex_bytes	<<	Number of bytes per vertex in the buffer.
+inputRate		<<	Defines how vertices are read and if instancing should be used. VK_VERTEX_INPUT_RATE_VERTEX, VK_VERTEX_INPUT_RATE_INSTANCE. 
+*/
+VkVertexInputBindingDescription defineVertexBinding(uint32_t bind_index, uint32_t vertex_bytes, VkVertexInputRate inputRate)
+{
+	VkVertexInputBindingDescription desc = {};
+	desc.binding = bind_index;
+	desc.stride = vertex_bytes;
+	desc.inputRate = inputRate;
+	return desc;
+}
+
+/* Define a vertex attribute from the params.
+bind_index	<<	The binding index of the related VkVertexInputBindingDescription (and hence vertex buffer) the attribute is associated with.
+loc_index	<<	The shader's input location for the attribute.
+format		<<	VkFormat specifying the data type of the attribute (specified as color channels etc..).
+offset		<<	Specifies the byte offset in the vertex in SoA format.
+*/
+VkVertexInputAttributeDescription defineVertexAttribute(uint32_t bind_index, uint32_t loc_index, VkFormat format, uint32_t attri_offset)
+{
+	VkVertexInputAttributeDescription attri = {};
+	attri.binding = 0;
+	attri.location = 0;
+	attri.format = format;
+	attri.offset = attri_offset;
+	return attri;
+}
+
+#pragma endregion
+
+#pragma region Image/Texture
 
 /* Create a 2D texture image of specific size and format.
 */
@@ -462,6 +501,8 @@ void checkValidImageFormats(VkPhysicalDevice device)
 			std::cout << NAMES[i] << " supported\n";
 	}
 }
+
+#pragma endregion
 
 /* Find a memory type on the device mathcing the specification
 */

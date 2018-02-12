@@ -10,7 +10,7 @@ TechniqueVulkan::TechniqueVulkan(Material* m, RenderState* r, VulkanRenderer* re
 
 	createRenderPass();
 	createDescriptorSet();
-	createPipeline();
+	//createPipeline();
 }
 
 TechniqueVulkan::~TechniqueVulkan()
@@ -84,25 +84,6 @@ void TechniqueVulkan::createDescriptorSet()
 	// This is all hardcoded, not very good
 	std::vector<VkDescriptorSetLayoutBinding> layoutBindings;
 
-	// Vertex shader slots
-	if (((MaterialVulkan*)material)->hasDefine(Material::ShaderType::VS, "#define POSITION "))
-	{
-		layoutBindings.push_back(VkDescriptorSetLayoutBinding{});
-		writeLayoutBinding(layoutBindings.back(), POSITION, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT);
-	}
-
-	if (((MaterialVulkan*)material)->hasDefine(Material::ShaderType::VS, "#define NORMAL "))
-	{
-		layoutBindings.push_back(VkDescriptorSetLayoutBinding{});
-		writeLayoutBinding(layoutBindings.back(), NORMAL, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT);
-	}
-
-	if (((MaterialVulkan*)material)->hasDefine(Material::ShaderType::VS, "#define TEXTCOORD "))
-	{
-		layoutBindings.push_back(VkDescriptorSetLayoutBinding{});
-		writeLayoutBinding(layoutBindings.back(), TEXTCOORD, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT);
-	}
-	
 	if (((MaterialVulkan*)material)->hasDefine(Material::ShaderType::VS, "#define TRANSLATION "))
 	{
 		layoutBindings.push_back(VkDescriptorSetLayoutBinding{});
@@ -149,18 +130,29 @@ void TechniqueVulkan::createPipeline()
 	stages[0] = vertexShaderStageInfo;
 	stages[1] = fragmentShaderStageInfo;
 
-	// todo
-	VkVertexInputBindingDescription vertexBindingDescription = {};
-	VkVertexInputAttributeDescription vertexAttributeDescription = {};
+	// Binding description (all use the same so... static)
+	const uint32_t NUM_BUFFER = 1;
+	const uint32_t NUM_ATTRI = 3;
+	VkVertexInputBindingDescription vertexBindingDescription[NUM_BUFFER] = 
+	{
+		defineVertexBinding(0, 10 * 4)
+	};
+	VkVertexInputAttributeDescription vertexAttributeDescription[NUM_ATTRI] =
+	{
+		defineVertexAttribute(0, POSITION, VkFormat::VK_FORMAT_R32G32B32A32_SFLOAT, 0),
+		defineVertexAttribute(0, NORMAL, VkFormat::VK_FORMAT_R32G32B32A32_SFLOAT, 16),
+		defineVertexAttribute(0, TEXTCOORD, VkFormat::VK_FORMAT_R32G32_SFLOAT, 32)
+	};
+	 
 
 	VkPipelineVertexInputStateCreateInfo pipelineVertexInputStateCreateInfo = {};
 	pipelineVertexInputStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 	pipelineVertexInputStateCreateInfo.pNext = nullptr;
 	pipelineVertexInputStateCreateInfo.flags = 0;
-	pipelineVertexInputStateCreateInfo.vertexBindingDescriptionCount = 1;
-	pipelineVertexInputStateCreateInfo.pVertexBindingDescriptions = &vertexBindingDescription;
-	pipelineVertexInputStateCreateInfo.vertexAttributeDescriptionCount = 1;	// todo
-	pipelineVertexInputStateCreateInfo.pVertexAttributeDescriptions = &vertexAttributeDescription;
+	pipelineVertexInputStateCreateInfo.vertexBindingDescriptionCount = NUM_BUFFER;
+	pipelineVertexInputStateCreateInfo.pVertexBindingDescriptions = vertexBindingDescription;
+	pipelineVertexInputStateCreateInfo.vertexAttributeDescriptionCount = NUM_ATTRI;
+	pipelineVertexInputStateCreateInfo.pVertexAttributeDescriptions = vertexAttributeDescription;
 
 	VkPipelineInputAssemblyStateCreateInfo pipelineInputAssemblyStateCreateInfo = {};
 	pipelineInputAssemblyStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;

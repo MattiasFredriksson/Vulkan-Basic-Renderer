@@ -1,15 +1,12 @@
 
 Points of interest:
 
-Image & Sampler descriptor write funcs are defined in VulkanConstruct
-
 Issues:
 
 ImageViews+SurfaceKHR destruction isn't working properly (due to images not created properly?)
 
 Todo:
 
-Vertex attributes (complete?, errors are printed)
 Shader parsing/loading
 Render commands
 Create descriptors and a descriptor set in the materials
