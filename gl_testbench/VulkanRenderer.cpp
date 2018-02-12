@@ -191,7 +191,9 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 	deviceCreateInfo.enabledExtensionCount = 1;
 	deviceCreateInfo.ppEnabledExtensionNames = deviceExtensions;
 
-	VkPhysicalDeviceFeatures deviceFeatures = {}; // empty
+	// Features
+	VkPhysicalDeviceFeatures deviceFeatures = {};
+	deviceFeatures.fillModeNonSolid = true;
 	deviceCreateInfo.pEnabledFeatures = &deviceFeatures;
 
 	// Create (vulkan) device

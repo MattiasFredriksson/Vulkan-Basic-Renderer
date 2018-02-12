@@ -90,24 +90,6 @@ void TechniqueVulkan::createDescriptorSet()
 	// This is all hardcoded, not very good
 	std::vector<VkDescriptorSetLayoutBinding> layoutBindings;
 
-	if (((MaterialVulkan*)material)->hasDefine(Material::ShaderType::VS, "#define POSITION "))
-	{
-		layoutBindings.push_back(VkDescriptorSetLayoutBinding{});
-		writeLayoutBinding(layoutBindings.back(), POSITION, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT);
-	}
-
-	if (((MaterialVulkan*)material)->hasDefine(Material::ShaderType::VS, "#define NORMAL "))
-	{
-		layoutBindings.push_back(VkDescriptorSetLayoutBinding{});
-		writeLayoutBinding(layoutBindings.back(), NORMAL, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT);
-	}
-
-	if (((MaterialVulkan*)material)->hasDefine(Material::ShaderType::VS, "#define TEXTCOORD "))
-	{
-		layoutBindings.push_back(VkDescriptorSetLayoutBinding{});
-		writeLayoutBinding(layoutBindings.back(), TEXTCOORD, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT);
-	}
-
 	if (((MaterialVulkan*)material)->hasDefine(Material::ShaderType::VS, "#define TRANSLATION "))
 	{
 		layoutBindings.push_back(VkDescriptorSetLayoutBinding{});
@@ -309,11 +291,12 @@ std::string TechniqueVulkan::assembleShader(Material::ShaderType type)
 // Returns output file name
 std::string TechniqueVulkan::runCompiler(Material::ShaderType type, std::string inputFileName)
 {
+	// pass defines
 	std::string commandLineStr;
 	if (type == Material::ShaderType::VS)
-		commandLineStr = "-V -o \"..\\assets\\Vulkan\\vertexShader.spv\" -e main ";
+		commandLineStr.append("-V -o \"..\\assets\\Vulkan\\vertexShader.spv\" -e main ");
 	else if (type == Material::ShaderType::PS)
-		commandLineStr = "-V -o \"..\\assets\\Vulkan\\fragmentShader.spv\" -e main ";
+		commandLineStr.append("-V -o \"..\\assets\\Vulkan\\fragmentShader.spv\" -e main ");
 
 	commandLineStr += "\"" + inputFileName + "\"";
 
