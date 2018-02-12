@@ -97,14 +97,14 @@ void updateScene()
 	*/
 	{
 		static long long shift = 0;
-		const size_t size = scene.size();
-		for (size_t i = 0; i < size; i++)
+		const int size = scene.size();
+		for (int i = 0; i < size; i++)
 		{
 			const float4 trans { 
 				xt[(int)(float)(i + shift) % (TOTAL_PLACES)], 
 				yt[(int)(float)(i + shift) % (TOTAL_PLACES)], 
 				i * (-1.0 / TOTAL_PLACES),
-				0.f
+				0.0
 			};
 			scene[i]->txBuffer->setData(&trans, sizeof(trans), scene[i]->technique->getMaterial(), TRANSLATION);
 		}
