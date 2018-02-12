@@ -270,19 +270,10 @@ void TechniqueVulkan::createShaders()
 	std::string vs = assembleShader(Material::ShaderType::VS);
 	std::string fs = assembleShader(Material::ShaderType::PS);
 
-	/*std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-	std::wstring vsWide = converter.from_bytes(vs);
-	std::wstring vsCommandLine = L"-V -o \"vertexShader.spv\" -e main " + vsWide;
-
-	std::wstring fsWide = converter.from_bytes(fs);
-	std::wstring fsCommandLine = L"-V -o \"fragmentShader.spv\" -e main " + fsWide;*/
-
 	std::string vsOut = runCompiler(Material::ShaderType::VS, vs);
 	std::string fsOut = runCompiler(Material::ShaderType::PS, fs);
 
-	// start another process with glslangValidator
-	// load the resulting binary to memory
-	// create shader modules
+
 }
 
 // Returns relative file path of created file
