@@ -72,8 +72,13 @@ std::vector<char*> checkValidationLayerSupport(char** validationLayers, size_t n
 /* Memory */
 
 VkBuffer createBuffer(VkDevice device, size_t byte_size, VkBufferUsageFlags usage, uint32_t queueCount = 0, uint32_t *queueFamilyIndices = nullptr);
+VkVertexInputBindingDescription defineVertexBinding(uint32_t bind_index, uint32_t vertex_bytes, VkVertexInputRate inputRate = VK_VERTEX_INPUT_RATE_VERTEX);
+VkVertexInputAttributeDescription defineVertexAttribute(uint32_t bind_index, uint32_t loc_index, VkFormat format, uint32_t attri_offset);
+
 VkImage createTexture2D(VkDevice device, uint32_t width, uint32_t height, VkFormat format = VK_FORMAT_R8G8B8A8_UNORM, VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL);
 VkImageView createImageView(VkDevice device, VkImage image, VkFormat format, VkImageViewType viewType = VK_IMAGE_VIEW_TYPE_2D);
+VkSampler createSampler(VkDevice device, VkFilter magFilter = VK_FILTER_LINEAR, VkFilter minFilter = VK_FILTER_LINEAR, 
+	VkSamplerAddressMode wrap_s = VK_SAMPLER_ADDRESS_MODE_REPEAT, VkSamplerAddressMode wrap_t = VK_SAMPLER_ADDRESS_MODE_REPEAT);
 
 VkDeviceMemory allocPhysicalMemory(VkDevice device, VkPhysicalDevice physicalDevice, VkBuffer buffer, VkMemoryPropertyFlags properties, bool bindToBuffer = false);
 VkDeviceMemory allocPhysicalMemory(VkDevice device, VkPhysicalDevice physicalDevice, VkImage image, VkMemoryPropertyFlags properties, bool bindToImage = false);
@@ -84,6 +89,27 @@ VkDeviceMemory allocPhysicalMemory(VkDevice device, VkPhysicalDevice physicalDev
 VkCommandBuffer beginSingleCommand(VkDevice device, VkCommandPool commandPool);
 void endSingleCommand_Wait(VkDevice device, VkQueue queue, VkCommandPool commandPool, VkCommandBuffer commandBuf);
 
+#pragma region Descriptors
+
+/* Write a image descriptor
+*/
+void writeDescriptorStruct(VkWriteDescriptorSet &writeStruct, VkDescriptorSet &descriptorSet, VkDescriptorImageInfo *imageInfo, uint32_t dstBinding, uint32_t dstArrayElem = 0);
+/* Write a image layout binding
+*/
+void writeLayoutBinding(VkDescriptorSetLayoutBinding &layoutBinding, uint32_t binding, VkDescriptorType type, VkShaderStageFlags stage);
+/* Create a VkDescriptorSetLayout from the bindings.
+*/
+VkDescriptorSetLayout createDescriptorLayout(VkDevice device, VkDescriptorSetLayoutBinding *bindings, size_t num_binding);
+#pragma endregion
+
+#pragma region Pipeline
+
+VkViewport defineViewport(float width, float height);
+VkViewport defineViewport(float x, float y, float width, float height, float minDepth = 0.f, float maxDepth = 1.f);
+VkRect2D defineScissorRect(VkViewport &viewport);
+VkRect2D defineScissorRect(int32_t x, int32_t y, uint32_t width, uint32_t height);
+
+#pragma endregion
 
 #ifdef VULKAN_DEVICE_IMPLEMENTATION
 
@@ -295,6 +321,8 @@ std::vector<char*> checkValidationLayerSupport(char** validationLayers, size_t n
 
 #pragma region Memory
 
+#pragma region Buffer
+
 /* Create a vulkan buffer of specific byte size and type.
 byte_size		<<	Byte size of the buffer.
 return			>>	The vertex buffer handle.
@@ -322,6 +350,40 @@ VkBuffer createBuffer(VkDevice device, size_t byte_size, VkBufferUsageFlags usag
 	}
 	return buffer;
 }
+
+/* Defines a VkVertexInputBindingDescription from the params. Used to bind (associate) a vertex buffer layout associated with the pipeline.
+bind_index		<<	Binding index for the description and(/or?) buffer.
+vertex_bytes	<<	Number of bytes per vertex in the buffer.
+inputRate		<<	Defines how vertices are read and if instancing should be used. VK_VERTEX_INPUT_RATE_VERTEX, VK_VERTEX_INPUT_RATE_INSTANCE. 
+*/
+VkVertexInputBindingDescription defineVertexBinding(uint32_t bind_index, uint32_t vertex_bytes, VkVertexInputRate inputRate)
+{
+	VkVertexInputBindingDescription desc = {};
+	desc.binding = bind_index;
+	desc.stride = vertex_bytes;
+	desc.inputRate = inputRate;
+	return desc;
+}
+
+/* Define a vertex attribute from the params.
+bind_index	<<	The binding index of the related VkVertexInputBindingDescription (and hence vertex buffer) the attribute is associated with.
+loc_index	<<	The shader's input location for the attribute.
+format		<<	VkFormat specifying the data type of the attribute (specified as color channels etc..).
+offset		<<	Specifies the byte offset in the vertex in SoA format.
+*/
+VkVertexInputAttributeDescription defineVertexAttribute(uint32_t bind_index, uint32_t loc_index, VkFormat format, uint32_t attri_offset)
+{
+	VkVertexInputAttributeDescription attri = {};
+	attri.binding = 0;
+	attri.location = 0;
+	attri.format = format;
+	attri.offset = attri_offset;
+	return attri;
+}
+
+#pragma endregion
+
+#pragma region Image/Texture
 
 /* Create a 2D texture image of specific size and format.
 */
@@ -380,6 +442,42 @@ VkImageView createImageView(VkDevice device, VkImage image, VkFormat format, VkI
 	return imageView;
 }
 
+/* Create a simple sampler with the base parameters set
+*/
+VkSampler createSampler(VkDevice device, VkFilter magFilter, VkFilter minFilter, VkSamplerAddressMode wrap_s, VkSamplerAddressMode wrap_t)
+{
+	VkSamplerCreateInfo samplerInfo = {};
+	samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+	samplerInfo.pNext = nullptr;
+	samplerInfo.flags = 0;
+	// Filters
+	samplerInfo.magFilter = magFilter;
+	samplerInfo.minFilter = minFilter;
+	// Wrap mode
+	samplerInfo.addressModeU = wrap_s;
+	samplerInfo.addressModeV = wrap_t;
+	samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+	// Anisotropy
+	samplerInfo.anisotropyEnable = VK_FALSE;
+	samplerInfo.maxAnisotropy = 1.0;
+	//Mipmapping
+	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+	samplerInfo.mipLodBias = 0.0f;
+	samplerInfo.minLod = 0.0f;
+	samplerInfo.maxLod = 0.0f;
+	// Misc
+	samplerInfo.unnormalizedCoordinates = VK_FALSE;
+	samplerInfo.compareEnable = VK_FALSE;
+	samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+
+	VkSampler sampler;
+	VkResult err = vkCreateSampler(device, &samplerInfo, nullptr, &sampler);
+	if (err != VK_SUCCESS) {
+		throw std::runtime_error("failed to create texture sampler!");
+	}
+	return sampler;
+}
 void checkValidImageFormats(VkPhysicalDevice device)
 {
 	const int NUM_FORMAT = 2;
@@ -403,6 +501,8 @@ void checkValidImageFormats(VkPhysicalDevice device)
 			std::cout << NAMES[i] << " supported\n";
 	}
 }
+
+#pragma endregion
 
 /* Find a memory type on the device mathcing the specification
 */
@@ -545,6 +645,102 @@ void endSingleCommand_Wait(VkDevice device, VkQueue queue, VkCommandPool command
 	vkFreeCommandBuffers(device, commandPool, 1, &commandBuf);
 }
 
+
+#pragma endregion
+
+#pragma region Descriptors
+
+/* Fill a combined image sampler to a descriptor set write struct.
+*/
+void writeDescriptorStruct(VkWriteDescriptorSet &writeStruct, VkDescriptorSet &descriptorSet, VkDescriptorImageInfo *imageInfo, uint32_t dstBinding, uint32_t dstArrayElem)
+{
+	writeStruct.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeStruct.dstSet = descriptorSet;
+	writeStruct.dstBinding = dstBinding;
+	writeStruct.dstArrayElement = dstArrayElem;
+	writeStruct.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	writeStruct.descriptorCount = 1;
+	writeStruct.pImageInfo = imageInfo;
+}
+/* Write layout binding
+*/
+void writeLayoutBinding(VkDescriptorSetLayoutBinding &layoutBinding, uint32_t binding, VkDescriptorType type, VkShaderStageFlags stage)
+{
+	layoutBinding.binding = binding;
+	layoutBinding.descriptorCount = 1;
+	layoutBinding.descriptorType = type;
+	layoutBinding.pImmutableSamplers = nullptr;
+	layoutBinding.stageFlags = stage;
+}
+
+/* Create a VkDescriptorSetLayout from the bindings.
+*/
+VkDescriptorSetLayout createDescriptorLayout(VkDevice device, VkDescriptorSetLayoutBinding *bindings, size_t num_binding)
+{
+	VkDescriptorSetLayoutCreateInfo createInfo = {};
+	createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	createInfo.pNext = nullptr;
+	createInfo.flags = 0;
+	createInfo.bindingCount = (uint32_t)num_binding;
+	createInfo.pBindings = bindings;
+
+	VkDescriptorSetLayout layout;
+	VkResult result = vkCreateDescriptorSetLayout(device, &createInfo, nullptr, &layout);
+	if (result != VK_SUCCESS)
+		throw std::runtime_error("Failed to create descriptor set layout.");
+	return layout;
+}
+#pragma endregion
+
+
+#pragma region Pipeline
+
+
+/* Define a viewport of specific size.
+*/
+VkViewport defineViewport(float width, float height)
+{
+	VkViewport viewport = {};
+	viewport.x = 0.0f;
+	viewport.y = 0.0f;
+	viewport.width = width;
+	viewport.height = height;
+	viewport.minDepth = 0.0f;
+	viewport.maxDepth = 1.0f;
+	return viewport;
+}
+/* Define a viewport from it's parameters.
+*/
+VkViewport defineViewport(float x, float y, float width, float height, float minDepth, float maxDepth)
+{
+	VkViewport viewport = {};
+	viewport.x = x;
+	viewport.y = y;
+	viewport.width = width;
+	viewport.height = height;
+	viewport.minDepth = minDepth;
+	viewport.maxDepth = maxDepth;
+	return viewport;
+}
+
+/* Define a scissor rectangle from bounds.
+*/
+VkRect2D defineScissorRect(int32_t x, int32_t y, uint32_t width, uint32_t height)
+{
+	VkRect2D scissor = {};
+	scissor.offset = { x, y };
+	scissor.extent = { width, height };
+	return scissor;
+}
+/* Define a scissor rectangle to fit the viewport.
+*/
+VkRect2D defineScissorRect(VkViewport &viewport)
+{
+	VkRect2D scissor = {};
+	scissor.offset = { 0, 0 };
+	scissor.extent = { (uint32_t)viewport.width, (uint32_t)viewport.height };
+	return scissor;
+}
 
 #pragma endregion
 

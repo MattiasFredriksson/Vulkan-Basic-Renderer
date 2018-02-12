@@ -4,7 +4,7 @@
 #include "VulkanRenderer.h"
 
 Texture2DVulkan::Texture2DVulkan(VulkanRenderer *renderer)
-	: _renderHandle(renderer), _imageHandle(nullptr), _viewHandle(nullptr)
+	: _renderHandle(renderer), _imageHandle(nullptr), imageInfo({NULL, NULL, VK_IMAGE_LAYOUT_UNDEFINED })
 {
 }
 
@@ -17,7 +17,7 @@ void Texture2DVulkan::destroyImg()
 {
 	if (_imageHandle)
 	{
-		vkDestroyImageView(_renderHandle->getDevice(), _viewHandle, nullptr);
+		vkDestroyImageView(_renderHandle->getDevice(), imageInfo.imageView, nullptr);
 		vkDestroyImage(_renderHandle->getDevice(), _imageHandle, nullptr);
 	}
 }
@@ -36,7 +36,7 @@ int Texture2DVulkan::loadFromFile(std::string filename)
 	destroyImg();
 
 	VkFormat format;
-	size_t bytes; 
+	uint32_t bytes; 
 	if (bpp == 3)
 	{
 		//Warning! Might not be supported
@@ -60,11 +60,16 @@ int Texture2DVulkan::loadFromFile(std::string filename)
 	_renderHandle->transitionImageFormat(_imageHandle, format, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
 	// Create image view
-	_viewHandle = createImageView(_renderHandle->getDevice(), _imageHandle, format);
+	imageInfo.imageView = createImageView(_renderHandle->getDevice(), _imageHandle, format);
+	imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 	return 0;
 }
 
 void Texture2DVulkan::bind(unsigned int slot)
 {
+	Sampler2DVulkan *vksamp = dynamic_cast<Sampler2DVulkan*>(sampler);
+	if (!vksamp)
+		throw std::runtime_error("No suitable sampler, create a default sampler...");
+	imageInfo.sampler = vksamp->_samplerHandle;
 }
