@@ -108,6 +108,20 @@ VkViewport defineViewport(float width, float height);
 VkViewport defineViewport(float x, float y, float width, float height, float minDepth = 0.f, float maxDepth = 1.f);
 VkRect2D defineScissorRect(VkViewport &viewport);
 VkRect2D defineScissorRect(int32_t x, int32_t y, uint32_t width, uint32_t height);
+VkPipelineViewportStateCreateInfo defineViewportState(VkViewport *viewport, VkRect2D *scissor);
+
+VkPipelineInputAssemblyStateCreateInfo defineInputAssembly(VkPrimitiveTopology primitiveType = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, VkBool32 indexLoopEnable = VK_FALSE);
+VkPipelineMultisampleStateCreateInfo defineMultiSampling_OFF();
+VkPipelineColorBlendStateCreateInfo defineBlendState_LogicOp(VkPipelineColorBlendAttachmentState *blendStateAttachments, uint32_t num_attachments, VkLogicOp logic_op, glm::vec4 blendConstants = glm::vec4(0));
+VkPipelineColorBlendStateCreateInfo defineBlendState(VkPipelineColorBlendAttachmentState *blendStateAttachments, uint32_t num_attachments, glm::vec4 blendConstants = glm::vec4(0));
+VkPipelineLayoutCreateInfo defineUniformLayout(VkDescriptorSetLayout *descriptorSet, uint32_t num_descriptors);
+
+
+VkPipelineShaderStageCreateInfo defineShaderStage(VkShaderStageFlagBits stage, VkShaderModule shader, const char* entryFunc = "main");
+
+VkPipelineVertexInputStateCreateInfo defineVertexBufferBindings(
+	VkVertexInputBindingDescription *bindings, uint32_t num_buffers, 
+	VkVertexInputAttributeDescription *attributes, uint32_t num_attri);
 
 #pragma endregion
 
@@ -741,6 +755,144 @@ VkRect2D defineScissorRect(VkViewport &viewport)
 	scissor.extent = { (uint32_t)viewport.width, (uint32_t)viewport.height };
 	return scissor;
 }
+
+/* Define the VkPipelineViewportStateCreateInfo from the params.
+*/
+VkPipelineViewportStateCreateInfo defineViewportState(VkViewport *viewport, VkRect2D *scissor)
+{
+	VkPipelineViewportStateCreateInfo viewportState = {};
+	viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+	viewportState.pNext = nullptr;
+	viewportState.flags = 0;
+	viewportState.viewportCount = 1;
+	viewportState.pViewports = viewport;
+	viewportState.scissorCount = 1;
+	viewportState.pScissors = scissor;
+	return viewportState;
+}
+
+/* Define how vertex data is read from buffers.
+primitiveType	<<	Define the type of primitives used (TRIANGLE_LIST, TRIANGLE_STRIP, LINE_LIST...)
+indexLoopEnable	<<	Define if primitive strips should be looped at a certain index (must be associated with STRIP type and use index buffer).
+*/
+VkPipelineInputAssemblyStateCreateInfo defineInputAssembly(VkPrimitiveTopology primitiveType, VkBool32 indexLoopEnable)
+{
+	VkPipelineInputAssemblyStateCreateInfo inputAssembly = {};
+	inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+	inputAssembly.pNext = nullptr;
+	inputAssembly.flags = 0;
+	inputAssembly.topology = primitiveType;
+	inputAssembly.primitiveRestartEnable = indexLoopEnable;
+	return inputAssembly;
+}
+
+/* Specify multisampling to be off (use only a single sample)
+*/
+VkPipelineMultisampleStateCreateInfo defineMultiSampling_OFF()
+{
+	VkPipelineMultisampleStateCreateInfo multisampleState = {};
+	multisampleState.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+	multisampleState.pNext = nullptr;
+	multisampleState.flags = 0;
+	multisampleState.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+	multisampleState.sampleShadingEnable = VK_FALSE;
+	multisampleState.minSampleShading = 0.0f;
+	multisampleState.pSampleMask = nullptr;
+	multisampleState.alphaToCoverageEnable = VK_FALSE;
+	multisampleState.alphaToOneEnable = VK_FALSE;
+	return multisampleState;
+}
+
+/* Define a blend state from the params.
+*/
+VkPipelineColorBlendStateCreateInfo defineBlendState(VkPipelineColorBlendAttachmentState *blendStateAttachments, uint32_t num_attachments, glm::vec4 blendConstants)
+{
+	VkPipelineColorBlendStateCreateInfo blendState = {};
+	blendState.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+	blendState.pNext = nullptr;
+	blendState.flags = 0;
+	blendState.logicOpEnable = VK_FALSE;
+	blendState.logicOp = VK_LOGIC_OP_COPY;
+	blendState.attachmentCount = num_attachments;
+	blendState.pAttachments = blendStateAttachments;
+	blendState.blendConstants[0] = blendConstants.r;
+	blendState.blendConstants[1] = blendConstants.g;
+	blendState.blendConstants[2] = blendConstants.b;
+	blendState.blendConstants[3] = blendConstants.a;
+	return blendState;
+}
+/* Define a blend state with logic operation when updating the framebuffer (note that only framebuffer format must be of integer type and not in float or sRGB format).
+*/
+VkPipelineColorBlendStateCreateInfo defineBlendState_LogicOp(VkPipelineColorBlendAttachmentState *blendStateAttachments, uint32_t num_attachments, VkLogicOp logic_op, glm::vec4 blendConstants)
+{
+	VkPipelineColorBlendStateCreateInfo blendState = {};
+	blendState.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+	blendState.pNext = nullptr;
+	blendState.flags = 0;
+	blendState.logicOpEnable = VK_TRUE;
+	blendState.logicOp = logic_op;
+	blendState.attachmentCount = num_attachments;
+	blendState.pAttachments = blendStateAttachments;
+	blendState.blendConstants[0] = blendConstants.r;
+	blendState.blendConstants[1] = blendConstants.g;
+	blendState.blendConstants[2] = blendConstants.b;
+	blendState.blendConstants[3] = blendConstants.a;
+	return blendState;
+}
+
+
+/* Define a simple uniform layout using uniform buffers (no push constants).
+*/
+VkPipelineLayoutCreateInfo defineUniformLayout(VkDescriptorSetLayout *descriptorSet, uint32_t num_descriptors)
+{
+	VkPipelineLayoutCreateInfo layout = {};
+	layout.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	layout.pNext = nullptr;
+	layout.flags = 0;
+	layout.setLayoutCount = num_descriptors;
+	layout.pSetLayouts = descriptorSet;
+	layout.pushConstantRangeCount = 0;
+	layout.pPushConstantRanges = nullptr;
+	return layout;
+}
+
+/* Define a shader used for a shader stage.
+stage		<<	Shader stage
+shader		<<	Shader bound to the stage.
+entryFunc	<<	Name of the entry point function in the shader.
+*/
+VkPipelineShaderStageCreateInfo defineShaderStage(VkShaderStageFlagBits stage, VkShaderModule shader, const char* entryFunc)
+{
+	VkPipelineShaderStageCreateInfo shaderStage = {};
+	shaderStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	shaderStage.pNext = NULL;
+	shaderStage.flags = 0;
+	shaderStage.stage = VK_SHADER_STAGE_VERTEX_BIT;
+	shaderStage.module = shader;
+	shaderStage.pName = entryFunc;
+	shaderStage.pSpecializationInfo = NULL;
+	return shaderStage;
+}
+
+/* Fill a VkPipelineVertexInputStateCreateInfo from the params.
+bindings	<<	Vertex buffer bindings used in the pipeline.
+num_buffers	<<	Number of buffer bindings.
+attributes	<<	Vertex attributes associated with the buffers (and used in pipeline).
+num_attri	<<	Number of attributes.
+*/
+VkPipelineVertexInputStateCreateInfo defineVertexBufferBindings(VkVertexInputBindingDescription *bindings, uint32_t num_buffers, VkVertexInputAttributeDescription *attributes, uint32_t num_attri)
+{
+	VkPipelineVertexInputStateCreateInfo bufferBindings = {};
+	bufferBindings.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+	bufferBindings.pNext = nullptr;
+	bufferBindings.flags = 0;
+	bufferBindings.vertexBindingDescriptionCount = num_buffers;
+	bufferBindings.pVertexBindingDescriptions = bindings;
+	bufferBindings.vertexAttributeDescriptionCount = num_attri;
+	bufferBindings.pVertexAttributeDescriptions = attributes;
+	return bufferBindings;
+}
+
 
 #pragma endregion
 
