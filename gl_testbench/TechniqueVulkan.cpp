@@ -152,20 +152,11 @@ void TechniqueVulkan::createPipeline()
 	VkPipelineViewportStateCreateInfo pipelineViewportStateCreateInfo =
 		defineViewportState(&viewport, &scissor);
 
-	VkPipelineRasterizationStateCreateInfo pipelineRasterizationStateCreateInfo = {};
-	pipelineRasterizationStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-	pipelineRasterizationStateCreateInfo.pNext = nullptr;
-	pipelineRasterizationStateCreateInfo.flags = 0;
-	pipelineRasterizationStateCreateInfo.depthClampEnable = VK_FALSE;
-	pipelineRasterizationStateCreateInfo.rasterizerDiscardEnable = VK_FALSE;
-	pipelineRasterizationStateCreateInfo.polygonMode = ((RenderStateVulkan*)renderState)->getWireframe() ? VK_POLYGON_MODE_LINE : VK_POLYGON_MODE_FILL;
-	pipelineRasterizationStateCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
-	pipelineRasterizationStateCreateInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-	pipelineRasterizationStateCreateInfo.depthBiasEnable = VK_FALSE;
-	pipelineRasterizationStateCreateInfo.depthBiasConstantFactor = 0.0f;
-	pipelineRasterizationStateCreateInfo.depthBiasClamp = 1.0f;
-	pipelineRasterizationStateCreateInfo.depthBiasSlopeFactor = 1.0f;
-	pipelineRasterizationStateCreateInfo.lineWidth = 1.0f;
+	int rasterFlag = 0;
+	if (((RenderStateVulkan*)renderState)->getWireframe())
+		rasterFlag |= WIREFRAME_BIT;
+	VkPipelineRasterizationStateCreateInfo pipelineRasterizationStateCreateInfo =
+		defineRasterizationState(rasterFlag, VK_CULL_MODE_BACK_BIT);
 
 	VkPipelineMultisampleStateCreateInfo pipelineMultisampleStateCreateInfo =
 		defineMultiSampling_OFF();
