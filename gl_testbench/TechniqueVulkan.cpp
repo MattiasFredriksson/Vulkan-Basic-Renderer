@@ -90,6 +90,24 @@ void TechniqueVulkan::createDescriptorSet()
 	// This is all hardcoded, not very good
 	std::vector<VkDescriptorSetLayoutBinding> layoutBindings;
 
+	if (((MaterialVulkan*)material)->hasDefine(Material::ShaderType::VS, "#define POSITION "))
+	{
+		layoutBindings.push_back(VkDescriptorSetLayoutBinding{});
+		writeLayoutBinding(layoutBindings.back(), POSITION, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT);
+	}
+
+	if (((MaterialVulkan*)material)->hasDefine(Material::ShaderType::VS, "#define NORMAL "))
+	{
+		layoutBindings.push_back(VkDescriptorSetLayoutBinding{});
+		writeLayoutBinding(layoutBindings.back(), NORMAL, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT);
+	}
+
+	if (((MaterialVulkan*)material)->hasDefine(Material::ShaderType::VS, "#define TEXTCOORD "))
+	{
+		layoutBindings.push_back(VkDescriptorSetLayoutBinding{});
+		writeLayoutBinding(layoutBindings.back(), TEXTCOORD, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT);
+	}
+
 	if (((MaterialVulkan*)material)->hasDefine(Material::ShaderType::VS, "#define TRANSLATION "))
 	{
 		layoutBindings.push_back(VkDescriptorSetLayoutBinding{});
@@ -131,51 +149,34 @@ void TechniqueVulkan::createPipeline()
 	fragmentShaderStageInfo.pName = "main";
 
 	VkPipelineShaderStageCreateInfo stages[2];
-	stages[0] = vertexShaderStageInfo;
-	stages[1] = fragmentShaderStageInfo;
+	stages[0] = defineShaderStage(VK_SHADER_STAGE_VERTEX_BIT, vertexShaderModule);
+	stages[1] = defineShaderStage(VK_SHADER_STAGE_FRAGMENT_BIT, fragmentShaderModule);
 
-	// Binding description (all use the same so... static)
+	// Vertex buffer bindings (static description...)
 	const uint32_t NUM_BUFFER = 1;
 	const uint32_t NUM_ATTRI = 3;
-	VkVertexInputBindingDescription vertexBindingDescription[NUM_BUFFER] = 
+	VkVertexInputBindingDescription vertexBufferBindings[NUM_BUFFER] = 
 	{
 		defineVertexBinding(0, 10 * 4)
 	};
-	VkVertexInputAttributeDescription vertexAttributeDescription[NUM_ATTRI] =
+	VkVertexInputAttributeDescription vertexAttributes[NUM_ATTRI] =
 	{
 		defineVertexAttribute(0, POSITION, VkFormat::VK_FORMAT_R32G32B32A32_SFLOAT, 0),
 		defineVertexAttribute(0, NORMAL, VkFormat::VK_FORMAT_R32G32B32A32_SFLOAT, 16),
 		defineVertexAttribute(0, TEXTCOORD, VkFormat::VK_FORMAT_R32G32_SFLOAT, 32)
 	};
-	 
+	VkPipelineVertexInputStateCreateInfo pipelineVertexInputStateCreateInfo = 
+		defineVertexBufferBindings(vertexBufferBindings, NUM_BUFFER, vertexAttributes, NUM_ATTRI);
 
-	VkPipelineVertexInputStateCreateInfo pipelineVertexInputStateCreateInfo = {};
-	pipelineVertexInputStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-	pipelineVertexInputStateCreateInfo.pNext = nullptr;
-	pipelineVertexInputStateCreateInfo.flags = 0;
-	pipelineVertexInputStateCreateInfo.vertexBindingDescriptionCount = NUM_BUFFER;
-	pipelineVertexInputStateCreateInfo.pVertexBindingDescriptions = vertexBindingDescription;
-	pipelineVertexInputStateCreateInfo.vertexAttributeDescriptionCount = NUM_ATTRI;
-	pipelineVertexInputStateCreateInfo.pVertexAttributeDescriptions = vertexAttributeDescription;
+	//
+	VkPipelineInputAssemblyStateCreateInfo pipelineInputAssemblyStateCreateInfo =
+		defineInputAssembly(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 
-	VkPipelineInputAssemblyStateCreateInfo pipelineInputAssemblyStateCreateInfo = {};
-	pipelineInputAssemblyStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-	pipelineInputAssemblyStateCreateInfo.pNext = nullptr;
-	pipelineInputAssemblyStateCreateInfo.flags = 0;
-	pipelineInputAssemblyStateCreateInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-	pipelineInputAssemblyStateCreateInfo.primitiveRestartEnable = VK_FALSE;
-
+	// Viewport
 	VkViewport viewport = defineViewport((float)renderer->getWidth(), (float)renderer->getHeight());
 	VkRect2D scissor = defineScissorRect(viewport);
-
-	VkPipelineViewportStateCreateInfo pipelineViewportStateCreateInfo = {};
-	pipelineViewportStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-	pipelineViewportStateCreateInfo.pNext = nullptr;
-	pipelineViewportStateCreateInfo.flags = 0;
-	pipelineViewportStateCreateInfo.viewportCount = 1;
-	pipelineViewportStateCreateInfo.pViewports = &viewport;
-	pipelineViewportStateCreateInfo.scissorCount = 1;
-	pipelineViewportStateCreateInfo.pScissors = &scissor;
+	VkPipelineViewportStateCreateInfo pipelineViewportStateCreateInfo =
+		defineViewportState(&viewport, &scissor);
 
 	VkPipelineRasterizationStateCreateInfo pipelineRasterizationStateCreateInfo = {};
 	pipelineRasterizationStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
@@ -188,46 +189,23 @@ void TechniqueVulkan::createPipeline()
 	pipelineRasterizationStateCreateInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 	pipelineRasterizationStateCreateInfo.depthBiasEnable = VK_FALSE;
 	pipelineRasterizationStateCreateInfo.depthBiasConstantFactor = 0.0f;
-	pipelineRasterizationStateCreateInfo.depthBiasClamp = 1.0f;
+	pipelineRasterizationStateCreateInfo.depthBiasClamp = 0.0f;
 	pipelineRasterizationStateCreateInfo.depthBiasSlopeFactor = 1.0f;
 	pipelineRasterizationStateCreateInfo.lineWidth = 1.0f;
 
-	VkPipelineMultisampleStateCreateInfo pipelineMultisampleStateCreateInfo = {};
-	pipelineMultisampleStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-	pipelineMultisampleStateCreateInfo.pNext = nullptr;
-	pipelineMultisampleStateCreateInfo.flags = 0;
-	pipelineMultisampleStateCreateInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-	pipelineMultisampleStateCreateInfo.sampleShadingEnable = VK_FALSE;
-	pipelineMultisampleStateCreateInfo.minSampleShading = 0.0f;
-	pipelineMultisampleStateCreateInfo.pSampleMask = nullptr;
-	pipelineMultisampleStateCreateInfo.alphaToCoverageEnable = VK_FALSE;
-	pipelineMultisampleStateCreateInfo.alphaToOneEnable = VK_FALSE;
+	VkPipelineMultisampleStateCreateInfo pipelineMultisampleStateCreateInfo =
+		defineMultiSampling_OFF();
 
 	VkPipelineColorBlendAttachmentState pipelineColorBlendAttachmentState = {};
 	pipelineColorBlendAttachmentState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 	pipelineColorBlendAttachmentState.blendEnable = VK_FALSE;
 
-	VkPipelineColorBlendStateCreateInfo pipelineColorBlendStateCreateInfo = {};
-	pipelineColorBlendStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-	pipelineColorBlendStateCreateInfo.pNext = nullptr;
-	pipelineColorBlendStateCreateInfo.flags = 0;
-	pipelineColorBlendStateCreateInfo.logicOpEnable = VK_FALSE;
-	pipelineColorBlendStateCreateInfo.logicOp = VK_LOGIC_OP_COPY;
-	pipelineColorBlendStateCreateInfo.attachmentCount = 1;
-	pipelineColorBlendStateCreateInfo.pAttachments = &pipelineColorBlendAttachmentState;
-	pipelineColorBlendStateCreateInfo.blendConstants[0] =
-	pipelineColorBlendStateCreateInfo.blendConstants[1] =
-	pipelineColorBlendStateCreateInfo.blendConstants[2] =
-	pipelineColorBlendStateCreateInfo.blendConstants[3] = 0.0f;
+	VkPipelineColorBlendStateCreateInfo pipelineColorBlendStateCreateInfo =
+		defineBlendState(&pipelineColorBlendAttachmentState, 1);
 
-	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
-	pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	pipelineLayoutCreateInfo.pNext = nullptr;
-	pipelineLayoutCreateInfo.flags = 0;
-	pipelineLayoutCreateInfo.setLayoutCount = 1;
-	pipelineLayoutCreateInfo.pSetLayouts = &vertexDataSetLayout;
-	pipelineLayoutCreateInfo.pushConstantRangeCount = 0;
-	pipelineLayoutCreateInfo.pPushConstantRanges = nullptr;
+	// Uniform layout description
+	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo =
+		defineUniformLayout(&vertexDataSetLayout, 1);
 
 	VkResult result = vkCreatePipelineLayout(renderer->getDevice(), &pipelineLayoutCreateInfo, nullptr, &pipelineLayout);
 	if (result != VK_SUCCESS)
