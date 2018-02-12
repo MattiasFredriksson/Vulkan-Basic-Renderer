@@ -1,6 +1,7 @@
 #pragma once
 
 #include "vulkan\vulkan.h"
+#include "../glm/glm.hpp"
 #include <assert.h>
 #include <algorithm>
 #include <vector>
@@ -878,7 +879,7 @@ VkPipelineShaderStageCreateInfo defineShaderStage(VkShaderStageFlagBits stage, V
 	shaderStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 	shaderStage.pNext = NULL;
 	shaderStage.flags = 0;
-	shaderStage.stage = VK_SHADER_STAGE_VERTEX_BIT;
+	shaderStage.stage = stage;
 	shaderStage.module = shader;
 	shaderStage.pName = entryFunc;
 	shaderStage.pSpecializationInfo = NULL;
