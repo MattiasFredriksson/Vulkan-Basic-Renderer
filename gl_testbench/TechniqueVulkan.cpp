@@ -118,10 +118,6 @@ void TechniqueVulkan::createPipeline()
 {
 	createShaders();
 
-	// todo: create shader modules
-	VkShaderModule vertexShaderModule;
-	VkShaderModule fragmentShaderModule;
-
 	VkPipelineShaderStageCreateInfo vertexShaderStageInfo = {};
 	vertexShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 	vertexShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
@@ -273,7 +269,26 @@ void TechniqueVulkan::createShaders()
 	std::string vsOut = runCompiler(Material::ShaderType::VS, vs);
 	std::string fsOut = runCompiler(Material::ShaderType::PS, fs);
 
+	std::vector<char> vsData = loadSPIR_V(vsOut);
+	std::vector<char> fsData = loadSPIR_V(fsOut);
 
+	VkShaderModuleCreateInfo shaderModuleCreateInfo = {};
+	shaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	shaderModuleCreateInfo.pNext = nullptr;
+	shaderModuleCreateInfo.flags = 0;
+	shaderModuleCreateInfo.codeSize = vsData.size();
+	shaderModuleCreateInfo.pCode = reinterpret_cast<uint32_t*>(vsData.data());
+
+	VkResult result = vkCreateShaderModule(renderer->getDevice(), &shaderModuleCreateInfo, nullptr, &vertexShaderModule);
+	if (result != VK_SUCCESS)
+		throw std::runtime_error("Failed to create vertex shader module.");
+
+	shaderModuleCreateInfo.codeSize = fsData.size();
+	shaderModuleCreateInfo.pCode = reinterpret_cast<uint32_t*>(fsData.data());
+
+	result = vkCreateShaderModule(renderer->getDevice(), &shaderModuleCreateInfo, nullptr, &fragmentShaderModule);
+	if (result != VK_SUCCESS)
+		throw std::runtime_error("Failed to create fragment shader module.");
 }
 
 // Returns relative file path of created file
@@ -325,7 +340,7 @@ std::string TechniqueVulkan::runCompiler(Material::ShaderType type, std::string 
 	std::string commandLineStr;
 	if (type == Material::ShaderType::VS)
 		commandLineStr = "-V -o \"..\\assets\\Vulkan\\vertexShader.spv\" -e main ";
-	else
+	else if (type == Material::ShaderType::PS)
 		commandLineStr = "-V -o \"..\\assets\\Vulkan\\fragmentShader.spv\" -e main ";
 
 	commandLineStr += "\"" + inputFileName + "\"";
@@ -379,4 +394,31 @@ std::string TechniqueVulkan::runCompiler(Material::ShaderType type, std::string 
 			throw std::runtime_error("The shader compilation failed.");
 		}
 	}
+
+	return (type == Material::ShaderType::VS) ? "..\\assets\\Vulkan\\vertexShader.spv" : "..\\assets\\Vulkan\\fragmentShader.spv";
+}
+
+std::vector<char> TechniqueVulkan::loadSPIR_V(std::string fileName)
+{
+	// Open file and seek to end
+	std::ifstream shaderFile(fileName, std::ios::ate | std::ios::binary);
+
+	if (!shaderFile.is_open())
+		throw std::runtime_error("Could not open SPIR-V file.");
+
+	// Get file size
+	size_t fileSize = static_cast<size_t>(shaderFile.tellg());
+
+	// Create and resize vector to fit the file
+	std::vector<char> data;
+	data.resize(fileSize);
+
+	// Reset to beginning
+	shaderFile.seekg(0);
+
+	// Read data into vector
+	shaderFile.read(data.data(), fileSize);
+	shaderFile.close();
+
+	return data;
 }
