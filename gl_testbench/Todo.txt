@@ -7,6 +7,7 @@ ImageViews+SurfaceKHR destruction isn't working properly (due to images not crea
 
 Todo:
 
+Shader parsing/loading
 Render commands
 Create descriptors and a descriptor set in the materials
 ...

@@ -1,10 +1,13 @@
 #pragma once
 
 #include "vulkan\vulkan.h"
-#include "../glm/glm.hpp"
 #include <assert.h>
 #include <algorithm>
 #include <vector>
+#include <glm/vec2.hpp>
+#include <glm/vec3.hpp>
+#include <glm/vec4.hpp>
+
 
 #pragma region Inline and type defs
 
@@ -26,19 +29,19 @@ inline bool hasMode(int mode, T *mode_list, size_t list_len)
 }
 /* Check if the flags are set in the property. */
 template<class T>
-inline bool hasFlag(T property, T flags)
+inline bool hasFlag(T property, uint32_t flags)
 {
 	return (property & flags) == flags;
 }
 /* Find if the flags are equal. */
 template<class T>
-inline bool matchFlag(T property, T flags)
+inline bool matchFlag(T property, uint32_t flags)
 {
 	return property == flags;
 }
 /* Unset bit in the flag. */
 template<class T>
-inline T rmvFlag(T property, T rmv)
+inline T rmvFlag(T property, uint32_t rmv)
 {
 	return property & ~rmv;
 }
@@ -117,6 +120,16 @@ VkPipelineColorBlendStateCreateInfo defineBlendState_LogicOp(VkPipelineColorBlen
 VkPipelineColorBlendStateCreateInfo defineBlendState(VkPipelineColorBlendAttachmentState *blendStateAttachments, uint32_t num_attachments, glm::vec4 blendConstants = glm::vec4(0));
 VkPipelineLayoutCreateInfo defineUniformLayout(VkDescriptorSetLayout *descriptorSet, uint32_t num_descriptors);
 
+
+typedef enum RasterizationFlagBits
+{
+	WIREFRAME_BIT = 0x00000001,
+	DEPTH_CLAMP_BIT = 0x00000002,
+	CLOCKWISE_FACE_BIT = 0x00000004,
+	NO_RASTERIZATION_BIT = 0x00000008	// Primitives are discarded before rasterization stage...
+} RasterizationFlagBits;
+VkPipelineRasterizationStateCreateInfo defineRasterizationState(uint32_t rasterFlags, VkCullModeFlags cullModeFlags, float lineWidth = 1.f);
+VkPipelineLayoutCreateInfo defineUniformLayout(VkDescriptorSetLayout *descriptorSet, uint32_t num_descriptors);
 
 VkPipelineShaderStageCreateInfo defineShaderStage(VkShaderStageFlagBits stage, VkShaderModule shader, const char* entryFunc = "main");
 
@@ -893,7 +906,27 @@ VkPipelineVertexInputStateCreateInfo defineVertexBufferBindings(VkVertexInputBin
 	bufferBindings.pVertexAttributeDescriptions = attributes;
 	return bufferBindings;
 }
-
+/* Define a simple rasterization state from params.
+*/
+VkPipelineRasterizationStateCreateInfo defineRasterizationState(uint32_t rasterFlags, VkCullModeFlags cullMode, float lineWidth)
+{
+	VkPipelineRasterizationStateCreateInfo rasterizationState = {};
+	rasterizationState.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+	rasterizationState.pNext = nullptr;
+	rasterizationState.flags = 0;
+	rasterizationState.depthClampEnable = (VkBool32)hasFlag(rasterFlags, DEPTH_CLAMP_BIT);
+	rasterizationState.rasterizerDiscardEnable = (VkBool32)hasFlag(rasterFlags, NO_RASTERIZATION_BIT);
+	rasterizationState.polygonMode = hasFlag(rasterFlags, WIREFRAME_BIT) ? VK_POLYGON_MODE_LINE : VK_POLYGON_MODE_FILL;
+	rasterizationState.cullMode = cullMode;
+	rasterizationState.frontFace = hasFlag(rasterFlags, CLOCKWISE_FACE_BIT) ? VK_FRONT_FACE_CLOCKWISE : VK_FRONT_FACE_COUNTER_CLOCKWISE;
+	rasterizationState.lineWidth = lineWidth; // For line rendering
+											  // Depth bias
+	rasterizationState.depthBiasEnable = VK_FALSE;
+	rasterizationState.depthBiasConstantFactor = 0.0f;
+	rasterizationState.depthBiasClamp = 0.0f;
+	rasterizationState.depthBiasSlopeFactor = 1.0f;
+	return rasterizationState;
+}
 
 #pragma endregion
 

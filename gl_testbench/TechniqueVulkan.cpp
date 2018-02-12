@@ -90,24 +90,6 @@ void TechniqueVulkan::createDescriptorSet()
 	// This is all hardcoded, not very good
 	std::vector<VkDescriptorSetLayoutBinding> layoutBindings;
 
-	if (((MaterialVulkan*)material)->hasDefine(Material::ShaderType::VS, "#define POSITION "))
-	{
-		layoutBindings.push_back(VkDescriptorSetLayoutBinding{});
-		writeLayoutBinding(layoutBindings.back(), POSITION, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT);
-	}
-
-	if (((MaterialVulkan*)material)->hasDefine(Material::ShaderType::VS, "#define NORMAL "))
-	{
-		layoutBindings.push_back(VkDescriptorSetLayoutBinding{});
-		writeLayoutBinding(layoutBindings.back(), NORMAL, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT);
-	}
-
-	if (((MaterialVulkan*)material)->hasDefine(Material::ShaderType::VS, "#define TEXTCOORD "))
-	{
-		layoutBindings.push_back(VkDescriptorSetLayoutBinding{});
-		writeLayoutBinding(layoutBindings.back(), TEXTCOORD, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT);
-	}
-
 	if (((MaterialVulkan*)material)->hasDefine(Material::ShaderType::VS, "#define TRANSLATION "))
 	{
 		layoutBindings.push_back(VkDescriptorSetLayoutBinding{});
@@ -178,24 +160,18 @@ void TechniqueVulkan::createPipeline()
 	VkPipelineViewportStateCreateInfo pipelineViewportStateCreateInfo =
 		defineViewportState(&viewport, &scissor);
 
-	VkPipelineRasterizationStateCreateInfo pipelineRasterizationStateCreateInfo = {};
-	pipelineRasterizationStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-	pipelineRasterizationStateCreateInfo.pNext = nullptr;
-	pipelineRasterizationStateCreateInfo.flags = 0;
-	pipelineRasterizationStateCreateInfo.depthClampEnable = VK_FALSE;
-	pipelineRasterizationStateCreateInfo.rasterizerDiscardEnable = VK_FALSE;
-	pipelineRasterizationStateCreateInfo.polygonMode = ((RenderStateVulkan*)renderState)->getWireframe() ? VK_POLYGON_MODE_LINE : VK_POLYGON_MODE_FILL;
-	pipelineRasterizationStateCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
-	pipelineRasterizationStateCreateInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-	pipelineRasterizationStateCreateInfo.depthBiasEnable = VK_FALSE;
-	pipelineRasterizationStateCreateInfo.depthBiasConstantFactor = 0.0f;
-	pipelineRasterizationStateCreateInfo.depthBiasClamp = 0.0f;
-	pipelineRasterizationStateCreateInfo.depthBiasSlopeFactor = 1.0f;
-	pipelineRasterizationStateCreateInfo.lineWidth = 1.0f;
+	// Rasterization state
+	int rasterFlag = 0;
+	if (((RenderStateVulkan*)renderState)->getWireframe())
+		rasterFlag |= WIREFRAME_BIT;
+	VkPipelineRasterizationStateCreateInfo pipelineRasterizationStateCreateInfo =
+		defineRasterizationState(rasterFlag, VK_CULL_MODE_BACK_BIT);
 
+	// Multisampling
 	VkPipelineMultisampleStateCreateInfo pipelineMultisampleStateCreateInfo =
 		defineMultiSampling_OFF();
 
+	// Blend states
 	VkPipelineColorBlendAttachmentState pipelineColorBlendAttachmentState = {};
 	pipelineColorBlendAttachmentState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 	pipelineColorBlendAttachmentState.blendEnable = VK_FALSE;
@@ -315,11 +291,12 @@ std::string TechniqueVulkan::assembleShader(Material::ShaderType type)
 // Returns output file name
 std::string TechniqueVulkan::runCompiler(Material::ShaderType type, std::string inputFileName)
 {
+	// pass defines
 	std::string commandLineStr;
 	if (type == Material::ShaderType::VS)
-		commandLineStr = "-V -o \"..\\assets\\Vulkan\\vertexShader.spv\" -e main ";
+		commandLineStr.append("-V -o \"..\\assets\\Vulkan\\vertexShader.spv\" -e main ");
 	else if (type == Material::ShaderType::PS)
-		commandLineStr = "-V -o \"..\\assets\\Vulkan\\fragmentShader.spv\" -e main ";
+		commandLineStr.append("-V -o \"..\\assets\\Vulkan\\fragmentShader.spv\" -e main ");
 
 	commandLineStr += "\"" + inputFileName + "\"";
 
