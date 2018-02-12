@@ -2,6 +2,7 @@
 #include "Vulkan\RenderStateVulkan.h"
 #include "IA.h"
 #include "Vulkan\MaterialVulkan.h"
+#include "VulkanConstruct.h"
 
 TechniqueVulkan::TechniqueVulkan(Material* m, RenderState* r, VulkanRenderer* renderer) : Technique(m, r)
 {
@@ -86,102 +87,44 @@ void TechniqueVulkan::createDescriptorSet()
 	// Vertex shader slots
 	if (((MaterialVulkan*)material)->hasDefine(Material::ShaderType::VS, "#define POSITION "))
 	{
-		VkDescriptorSetLayoutBinding layoutBinding = {};
-		layoutBinding.binding = POSITION;
-		layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		layoutBinding.descriptorCount = 1;
-		layoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-		layoutBinding.pImmutableSamplers = nullptr;
-
-		layoutBindings.push_back(layoutBinding);
+		layoutBindings.push_back(VkDescriptorSetLayoutBinding{});
+		writeLayoutBinding(layoutBindings.back(), POSITION, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT);
 	}
 
 	if (((MaterialVulkan*)material)->hasDefine(Material::ShaderType::VS, "#define NORMAL "))
 	{
-		VkDescriptorSetLayoutBinding layoutBinding = {};
-		layoutBinding.binding = NORMAL;
-		layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		layoutBinding.descriptorCount = 1;
-		layoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-		layoutBinding.pImmutableSamplers = nullptr;
-
-		layoutBindings.push_back(layoutBinding);
+		layoutBindings.push_back(VkDescriptorSetLayoutBinding{});
+		writeLayoutBinding(layoutBindings.back(), NORMAL, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT);
 	}
 
 	if (((MaterialVulkan*)material)->hasDefine(Material::ShaderType::VS, "#define TEXTCOORD "))
 	{
-		VkDescriptorSetLayoutBinding layoutBinding = {};
-		layoutBinding.binding = TEXTCOORD;
-		layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		layoutBinding.descriptorCount = 1;
-		layoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-		layoutBinding.pImmutableSamplers = nullptr;
-
-		layoutBindings.push_back(layoutBinding);
+		layoutBindings.push_back(VkDescriptorSetLayoutBinding{});
+		writeLayoutBinding(layoutBindings.back(), TEXTCOORD, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT);
 	}
-
+	
 	if (((MaterialVulkan*)material)->hasDefine(Material::ShaderType::VS, "#define TRANSLATION "))
 	{
-		VkDescriptorSetLayoutBinding layoutBinding = {};
-		layoutBinding.binding = TRANSLATION;
-		layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		layoutBinding.descriptorCount = 1;
-		layoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-		layoutBinding.pImmutableSamplers = nullptr;
-
-		layoutBindings.push_back(layoutBinding);
+		layoutBindings.push_back(VkDescriptorSetLayoutBinding{});
+		writeLayoutBinding(layoutBindings.back(), TRANSLATION, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT);
 	}
 
-	if (((MaterialVulkan*)material)->hasDefine(Material::ShaderType::VS, "#define DIFFUSE_TINT "))
+	VkShaderStageFlags stage = ((MaterialVulkan*)material)->hasDefine(Material::ShaderType::VS, "#define DIFFUSE_TINT ") ? VK_SHADER_STAGE_FRAGMENT_BIT : 0;
+	stage |= ((MaterialVulkan*)material)->hasDefine(Material::ShaderType::PS, "#define DIFFUSE_TINT ") ? VK_SHADER_STAGE_FRAGMENT_BIT : 0;
+	if (stage)
 	{
-		VkDescriptorSetLayoutBinding layoutBinding = {};
-		layoutBinding.binding = DIFFUSE_TINT;
-		layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		layoutBinding.descriptorCount = 1;
-		layoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-		layoutBinding.pImmutableSamplers = nullptr;
-
-		layoutBindings.push_back(layoutBinding);
-	}
-
-	// Pixel shader slots
-	if (((MaterialVulkan*)material)->hasDefine(Material::ShaderType::PS, "#define DIFFUSE_TINT "))
-	{
-		VkDescriptorSetLayoutBinding layoutBinding = {};
-		layoutBinding.binding = DIFFUSE_TINT;
-		layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		layoutBinding.descriptorCount = 1;
-		layoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-		layoutBinding.pImmutableSamplers = nullptr;
-
-		layoutBindings.push_back(layoutBinding);
+		layoutBindings.push_back(VkDescriptorSetLayoutBinding{});
+		writeLayoutBinding(layoutBindings.back(), DIFFUSE_TINT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, stage);
 	}
 
 	if (((MaterialVulkan*)material)->hasDefine(Material::ShaderType::PS, "#define DIFFUSE_SLOT "))
 	{
-		VkDescriptorSetLayoutBinding layoutBinding = {};
-		layoutBinding.binding = DIFFUSE_SLOT;
-		layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;	// todo: correct?
-		layoutBinding.descriptorCount = 1;
-		layoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-		layoutBinding.pImmutableSamplers = nullptr;
-
-		layoutBindings.push_back(layoutBinding);
+		layoutBindings.push_back(VkDescriptorSetLayoutBinding{});
+		writeLayoutBinding(layoutBindings.back(), DIFFUSE_SLOT, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT);
 	}
 
-	// todo: binding for texture?
-
 	// Create layout
-	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
-	descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	descriptorSetLayoutCreateInfo.pNext = nullptr;
-	descriptorSetLayoutCreateInfo.flags = 0;
-	descriptorSetLayoutCreateInfo.bindingCount = layoutBindings.size();
-	descriptorSetLayoutCreateInfo.pBindings = &layoutBindings[0];
-
-	VkResult result = vkCreateDescriptorSetLayout(renderer->getDevice(), &descriptorSetLayoutCreateInfo, nullptr, &vertexDataSetLayout);
-	if (result != VK_SUCCESS)
-		throw std::runtime_error("Failed to create descriptor set layout.");
+	vertexDataSetLayout = createDescriptorLayout(renderer->getDevice(), layoutBindings.data(), layoutBindings.size());
 }
 
 void TechniqueVulkan::createPipeline()
@@ -226,25 +169,8 @@ void TechniqueVulkan::createPipeline()
 	pipelineInputAssemblyStateCreateInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 	pipelineInputAssemblyStateCreateInfo.primitiveRestartEnable = VK_FALSE;
 
-	VkViewport viewport = {};
-	viewport.x = 0.0f;
-	viewport.y = 0.0f;
-	viewport.width = (float)renderer->getWidth();
-	viewport.height = (float)renderer->getHeight();
-	viewport.minDepth = 0.0f;
-	viewport.maxDepth = 1.0f;
-
-	VkExtent2D extent = {};
-	extent.width = renderer->getWidth();
-	extent.height = renderer->getHeight();
-
-	VkOffset2D offset = {};
-	offset.x = 0;
-	offset.y = 0;
-
-	VkRect2D scissor = {};
-	scissor.offset = offset;
-	scissor.extent = extent;
+	VkViewport viewport = defineViewport((float)renderer->getWidth(), (float)renderer->getHeight());
+	VkRect2D scissor = defineScissorRect(viewport);
 
 	VkPipelineViewportStateCreateInfo pipelineViewportStateCreateInfo = {};
 	pipelineViewportStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;

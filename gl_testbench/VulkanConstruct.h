@@ -93,7 +93,18 @@ void endSingleCommand_Wait(VkDevice device, VkQueue queue, VkCommandPool command
 void writeDescriptorStruct(VkWriteDescriptorSet &writeStruct, VkDescriptorSet &descriptorSet, VkDescriptorImageInfo *imageInfo, uint32_t dstBinding, uint32_t dstArrayElem = 0);
 /* Write a image layout binding
 */
-void writeLayoutBinding(VkDescriptorSetLayoutBinding &layoutBinding, VkShaderStageFlags stage = VK_SHADER_STAGE_FRAGMENT_BIT);
+void writeLayoutBinding(VkDescriptorSetLayoutBinding &layoutBinding, uint32_t binding, VkDescriptorType type, VkShaderStageFlags stage);
+/* Create a VkDescriptorSetLayout from the bindings.
+*/
+VkDescriptorSetLayout createDescriptorLayout(VkDevice device, VkDescriptorSetLayoutBinding *bindings, size_t num_binding);
+#pragma endregion
+
+#pragma region Pipeline
+
+VkViewport defineViewport(float width, float height);
+VkViewport defineViewport(float x, float y, float width, float height, float minDepth = 0.f, float maxDepth = 1.f);
+VkRect2D defineScissorRect(VkViewport &viewport);
+VkRect2D defineScissorRect(int32_t x, int32_t y, uint32_t width, uint32_t height);
 
 #pragma endregion
 
@@ -612,13 +623,82 @@ void writeDescriptorStruct(VkWriteDescriptorSet &writeStruct, VkDescriptorSet &d
 }
 /* Write layout binding
 */
-void writeLayoutBinding(VkDescriptorSetLayoutBinding &layoutBinding, VkShaderStageFlags stage)
+void writeLayoutBinding(VkDescriptorSetLayoutBinding &layoutBinding, uint32_t binding, VkDescriptorType type, VkShaderStageFlags stage)
 {
-	layoutBinding.binding = 1;
+	layoutBinding.binding = binding;
 	layoutBinding.descriptorCount = 1;
-	layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	layoutBinding.descriptorType = type;
 	layoutBinding.pImmutableSamplers = nullptr;
 	layoutBinding.stageFlags = stage;
+}
+
+/* Create a VkDescriptorSetLayout from the bindings.
+*/
+VkDescriptorSetLayout createDescriptorLayout(VkDevice device, VkDescriptorSetLayoutBinding *bindings, size_t num_binding)
+{
+	VkDescriptorSetLayoutCreateInfo createInfo = {};
+	createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	createInfo.pNext = nullptr;
+	createInfo.flags = 0;
+	createInfo.bindingCount = (uint32_t)num_binding;
+	createInfo.pBindings = bindings;
+
+	VkDescriptorSetLayout layout;
+	VkResult result = vkCreateDescriptorSetLayout(device, &createInfo, nullptr, &layout);
+	if (result != VK_SUCCESS)
+		throw std::runtime_error("Failed to create descriptor set layout.");
+	return layout;
+}
+#pragma endregion
+
+
+#pragma region Pipeline
+
+
+/* Define a viewport of specific size.
+*/
+VkViewport defineViewport(float width, float height)
+{
+	VkViewport viewport = {};
+	viewport.x = 0.0f;
+	viewport.y = 0.0f;
+	viewport.width = width;
+	viewport.height = height;
+	viewport.minDepth = 0.0f;
+	viewport.maxDepth = 1.0f;
+	return viewport;
+}
+/* Define a viewport from it's parameters.
+*/
+VkViewport defineViewport(float x, float y, float width, float height, float minDepth, float maxDepth)
+{
+	VkViewport viewport = {};
+	viewport.x = x;
+	viewport.y = y;
+	viewport.width = width;
+	viewport.height = height;
+	viewport.minDepth = minDepth;
+	viewport.maxDepth = maxDepth;
+	return viewport;
+}
+
+/* Define a scissor rectangle from bounds.
+*/
+VkRect2D defineScissorRect(int32_t x, int32_t y, uint32_t width, uint32_t height)
+{
+	VkRect2D scissor = {};
+	scissor.offset = { x, y };
+	scissor.extent = { width, height };
+	return scissor;
+}
+/* Define a scissor rectangle to fit the viewport.
+*/
+VkRect2D defineScissorRect(VkViewport &viewport)
+{
+	VkRect2D scissor = {};
+	scissor.offset = { 0, 0 };
+	scissor.extent = { (uint32_t)viewport.width, (uint32_t)viewport.height };
+	return scissor;
 }
 
 #pragma endregion
