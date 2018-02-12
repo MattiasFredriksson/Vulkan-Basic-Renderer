@@ -9,4 +9,5 @@ Vertex attributes (complete?, errors are printed)
 Image Samplers (will look into tomorrow ~evening)
 Shader parsing/loading
 Render commands
+Create descriptors and a descriptor set in the materials
 ...
