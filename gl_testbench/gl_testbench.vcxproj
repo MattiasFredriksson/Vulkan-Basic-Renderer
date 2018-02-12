@@ -171,6 +171,7 @@
     <ClCompile Include="OpenGL\Texture2DGL.cpp" />
     <ClCompile Include="OpenGL\TransformGL.cpp" />
     <ClCompile Include="OpenGL\VertexBufferGL.cpp" />
+    <ClCompile Include="Process.cpp" />
     <ClCompile Include="Sampler2D.cpp" />
     <ClCompile Include="Scene.cpp" />
     <ClCompile Include="TechniqueVulkan.cpp" />

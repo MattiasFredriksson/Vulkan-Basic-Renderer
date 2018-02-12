@@ -402,8 +402,8 @@ offset		<<	Specifies the byte offset in the vertex in SoA format.
 VkVertexInputAttributeDescription defineVertexAttribute(uint32_t bind_index, uint32_t loc_index, VkFormat format, uint32_t attri_offset)
 {
 	VkVertexInputAttributeDescription attri = {};
-	attri.binding = 0;
-	attri.location = 0;
+	attri.binding = bind_index;
+	attri.location = loc_index;
 	attri.format = format;
 	attri.offset = attri_offset;
 	return attri;

@@ -35,6 +35,5 @@ void main() {
 	#ifdef TEXTCOORD
 		uv_out = uv_in;
 	#endif
-	asd
 	gl_Position = position_in + translate;
 }
