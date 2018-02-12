@@ -1,23 +1,14 @@
 // buffer inputs
 #ifdef NORMAL
-	layout(binding=NORMAL) uniform Normal 
-	{
-		vec4 normal_in[];
-	} nor;
+	layout(binding=NORMAL) buffer nor { vec4 normal_in[]; };
 	layout(location=NORMAL) out vec4 normal_out;
 #endif
 
 #ifdef TEXTCOORD
-	layout(binding=TEXTCOORD) uniform TextureCoordinate
-	{
-		vec2 uv_in[];
-	} text;
+	layout(binding=TEXTCOORD) buffer text { vec2 uv_in[]; };
 	layout(location=TEXTCOORD) out vec2 uv_out;
 #endif
-layout(binding=POSITION) uniform Position
-{
-	vec4 position_in[];
-} pos;
+layout(binding=POSITION) buffer pos { vec4 position_in[]; };
 
 // uniform block
 // layout(std140, binding = 20) uniform TransformBlock

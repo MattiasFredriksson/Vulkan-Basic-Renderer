@@ -152,15 +152,18 @@ void TechniqueVulkan::createPipeline()
 	VkPipelineViewportStateCreateInfo pipelineViewportStateCreateInfo =
 		defineViewportState(&viewport, &scissor);
 
+	// Rasterization state
 	int rasterFlag = 0;
 	if (((RenderStateVulkan*)renderState)->getWireframe())
 		rasterFlag |= WIREFRAME_BIT;
 	VkPipelineRasterizationStateCreateInfo pipelineRasterizationStateCreateInfo =
 		defineRasterizationState(rasterFlag, VK_CULL_MODE_BACK_BIT);
 
+	// Multisampling
 	VkPipelineMultisampleStateCreateInfo pipelineMultisampleStateCreateInfo =
 		defineMultiSampling_OFF();
 
+	// Blend states
 	VkPipelineColorBlendAttachmentState pipelineColorBlendAttachmentState = {};
 	pipelineColorBlendAttachmentState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 	pipelineColorBlendAttachmentState.blendEnable = VK_FALSE;

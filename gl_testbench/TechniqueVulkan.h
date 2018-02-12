@@ -23,7 +23,6 @@ private:
 	void createShaders();
 	std::string assembleShader(Material::ShaderType type);
 	std::string runCompiler(Material::ShaderType type, std::string inputFileName);
-	std::vector<char> loadSPIR_V(std::string fileName);
 
 	VulkanRenderer* renderer;
 
@@ -34,8 +33,5 @@ private:
 	VkPipeline pipeline;
 
 	VkPipelineLayout pipelineLayout;
-
-	VkShaderModule vertexShaderModule;
-	VkShaderModule fragmentShaderModule;
 };
 
