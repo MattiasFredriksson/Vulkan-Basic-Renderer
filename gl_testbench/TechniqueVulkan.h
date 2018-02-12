@@ -20,6 +20,9 @@ private:
 	void createRenderPass();
 	void createDescriptorSet();
 	void createPipeline();
+	void createShaders();
+	std::string assembleShader(Material::ShaderType type);
+	std::string runCompiler(Material::ShaderType type, std::string inputFileName);
 
 	VulkanRenderer* renderer;
 

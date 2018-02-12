@@ -2,6 +2,12 @@
 #include "Vulkan\RenderStateVulkan.h"
 #include "IA.h"
 #include "Vulkan\MaterialVulkan.h"
+#include <iostream>
+#include <sstream>
+#include <fstream>
+#include <Windows.h>
+#include <locale>
+#include <codecvt>
 
 TechniqueVulkan::TechniqueVulkan(Material* m, RenderState* r, VulkanRenderer* renderer) : Technique(m, r)
 {
@@ -132,31 +138,19 @@ void TechniqueVulkan::createDescriptorSet()
 		layoutBindings.push_back(layoutBinding);
 	}
 
-	if (((MaterialVulkan*)material)->hasDefine(Material::ShaderType::VS, "#define DIFFUSE_TINT "))
+	if (((MaterialVulkan*)material)->hasDefine(Material::ShaderType::VS, "#define DIFFUSE_TINT ") && ((MaterialVulkan*)material)->hasDefine(Material::ShaderType::PS, "#define DIFFUSE_TINT "))
 	{
 		VkDescriptorSetLayoutBinding layoutBinding = {};
 		layoutBinding.binding = DIFFUSE_TINT;
 		layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 		layoutBinding.descriptorCount = 1;
-		layoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+		layoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 		layoutBinding.pImmutableSamplers = nullptr;
 
 		layoutBindings.push_back(layoutBinding);
 	}
 
 	// Pixel shader slots
-	if (((MaterialVulkan*)material)->hasDefine(Material::ShaderType::PS, "#define DIFFUSE_TINT "))
-	{
-		VkDescriptorSetLayoutBinding layoutBinding = {};
-		layoutBinding.binding = DIFFUSE_TINT;
-		layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		layoutBinding.descriptorCount = 1;
-		layoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-		layoutBinding.pImmutableSamplers = nullptr;
-
-		layoutBindings.push_back(layoutBinding);
-	}
-
 	if (((MaterialVulkan*)material)->hasDefine(Material::ShaderType::PS, "#define DIFFUSE_SLOT "))
 	{
 		VkDescriptorSetLayoutBinding layoutBinding = {};
@@ -186,6 +180,8 @@ void TechniqueVulkan::createDescriptorSet()
 
 void TechniqueVulkan::createPipeline()
 {
+	createShaders();
+
 	// todo: create shader modules
 	VkShaderModule vertexShaderModule;
 	VkShaderModule fragmentShaderModule;
@@ -337,4 +333,129 @@ void TechniqueVulkan::createPipeline()
 
 	if (result != VK_SUCCESS)
 		throw std::runtime_error("Failed to create pipeline.");
+}
+
+void TechniqueVulkan::createShaders()
+{
+	std::string vs = assembleShader(Material::ShaderType::VS);
+	std::string fs = assembleShader(Material::ShaderType::PS);
+
+	/*std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
+	std::wstring vsWide = converter.from_bytes(vs);
+	std::wstring vsCommandLine = L"-V -o \"vertexShader.spv\" -e main " + vsWide;
+
+	std::wstring fsWide = converter.from_bytes(fs);
+	std::wstring fsCommandLine = L"-V -o \"fragmentShader.spv\" -e main " + fsWide;*/
+
+	std::string vsOut = runCompiler(Material::ShaderType::VS, vs);
+	std::string fsOut = runCompiler(Material::ShaderType::PS, fs);
+
+	// start another process with glslangValidator
+	// load the resulting binary to memory
+	// create shader modules
+}
+
+// Returns relative file path of created file
+std::string TechniqueVulkan::assembleShader(Material::ShaderType type)
+{
+	const std::string path = "..//assets//Vulkan//";
+	std::string fileName;
+
+	if (type == Material::ShaderType::VS)
+		fileName = path + "vertexShader.glsl.vert";
+	else if (type == Material::ShaderType::PS)
+		fileName = path + "fragmentShader.glsl.frag";
+	else
+		throw std::runtime_error("Unsupported shader type!");
+
+	// Read shader into string
+	std::ifstream file(material->shaderFileNames[type]);
+	std::stringstream fileContents;
+	if (file.is_open())
+	{
+		fileContents << file.rdbuf();
+		file.close();
+	}
+	else
+		throw std::runtime_error("Could not open shader file.");
+
+	// Write complete shader into file
+	std::ofstream completeShader(fileName);
+	if (completeShader.is_open())
+	{
+		completeShader << "#version 450\n";
+
+		for (std::string def : material->shaderDefines[type])
+			completeShader << def;
+
+		completeShader << fileContents.str();
+
+		completeShader.close();
+	}
+	else
+		throw std::runtime_error("Could not create shader file.");
+
+	return fileName;
+}
+
+// Returns output file name
+std::string TechniqueVulkan::runCompiler(Material::ShaderType type, std::string inputFileName)
+{
+	std::string commandLineStr;
+	if (type == Material::ShaderType::VS)
+		commandLineStr = "-V -o \"..\\assets\\Vulkan\\vertexShader.spv\" -e main ";
+	else
+		commandLineStr = "-V -o \"..\\assets\\Vulkan\\fragmentShader.spv\" -e main ";
+
+	commandLineStr += "\"" + inputFileName + "\"";
+
+	LPSTR commandLine = const_cast<char *>(commandLineStr.c_str());
+
+	STARTUPINFOA startupInfo = {};
+	startupInfo.cb = sizeof(STARTUPINFOA);
+	startupInfo.lpReserved = NULL;
+	startupInfo.lpDesktop = "desktop";
+	startupInfo.lpTitle = NULL;
+	startupInfo.dwX = 0;
+	startupInfo.dwY = 0;
+	startupInfo.dwXSize = 0;
+	startupInfo.dwYSize = 0;
+	startupInfo.dwXCountChars = 0;
+	startupInfo.dwYCountChars = 0;
+	startupInfo.dwFillAttribute = 0;
+	startupInfo.dwFlags = 0;
+	startupInfo.wShowWindow = 0;
+	startupInfo.cbReserved2 = 0;
+	startupInfo.lpReserved2 = NULL;
+	startupInfo.hStdInput = 0;
+	startupInfo.hStdOutput = 0;
+	startupInfo.hStdError = 0;
+
+	LPSTARTUPINFOA startupInfoPointer = &startupInfo;
+
+	PROCESS_INFORMATION processInfo = {};
+
+	if (!CreateProcessA("..\\assets\\Vulkan\\glslangValidator.exe", commandLine, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, startupInfoPointer, &processInfo))
+	{
+		//HRESULT res = HRESULT_FROM_WIN32(GetLastError());
+		throw std::runtime_error("Failed to start shader compilation process.");
+	}
+
+	WaitForSingleObject(processInfo.hProcess, INFINITE);
+
+	DWORD exitCode;
+	bool result = GetExitCodeProcess(processInfo.hProcess, &exitCode);
+
+	CloseHandle(processInfo.hProcess);
+	CloseHandle(processInfo.hThread);
+
+	if (!result)
+	{
+		throw std::runtime_error("Could not get exit code from process.");
+
+		if (!exitCode)
+		{
+			throw std::runtime_error("The shader compilation failed.");
+		}
+	}
 }

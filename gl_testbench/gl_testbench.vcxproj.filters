@@ -121,7 +121,7 @@
       <Filter>Source Files\Vulkan</Filter>
     </ClCompile>
     <ClCompile Include="TechniqueVulkan.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\Vulkan</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

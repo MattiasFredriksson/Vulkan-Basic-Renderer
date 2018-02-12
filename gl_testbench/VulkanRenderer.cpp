@@ -56,7 +56,7 @@ RenderState* VulkanRenderer::makeRenderState()
 }
 std::string VulkanRenderer::getShaderPath()
 {
-	return "..\\assets\\GL45\\";
+	return "..\\assets\\Vulkan\\";
 }
 std::string VulkanRenderer::getShaderExtension()
 {
