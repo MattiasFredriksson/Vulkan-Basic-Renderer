@@ -232,16 +232,16 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\assets\GL45\FragmentShader.glsl">
-      <Filter>Resource Files</Filter>
-    </None>
-    <None Include="..\assets\GL45\VertexShader.glsl">
-      <Filter>Resource Files</Filter>
-    </None>
-  </ItemGroup>
-  <ItemGroup>
     <Text Include="Todo.txt">
       <Filter>Resource Files</Filter>
     </Text>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\assets\Vulkan\FragmentShader.glsl">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="..\assets\Vulkan\VertexShader.glsl">
+      <Filter>Resource Files</Filter>
+    </None>
   </ItemGroup>
 </Project>

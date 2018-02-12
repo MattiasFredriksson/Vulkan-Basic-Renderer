@@ -232,11 +232,11 @@
     <ClInclude Include="Vulkan\VulkanRenderer.h" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\assets\GL45\FragmentShader.glsl" />
-    <None Include="..\assets\GL45\VertexShader.glsl" />
+    <Text Include="Todo.txt" />
   </ItemGroup>
   <ItemGroup>
-    <Text Include="Todo.txt" />
+    <None Include="..\assets\Vulkan\FragmentShader.glsl" />
+    <None Include="..\assets\Vulkan\VertexShader.glsl" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
