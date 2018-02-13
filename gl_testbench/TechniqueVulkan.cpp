@@ -351,8 +351,21 @@ std::string TechniqueVulkan::runCompiler(Material::ShaderType type, std::string 
 	{
 		throw std::runtime_error("Could not get exit code from process.");
 	}
-	if (exitCode)
+	if (!exitCode)
 	{
+		DWORD err = GetLastError();
+		if (err != 0)
+		{
+			LPSTR messageBuffer = nullptr;
+			size_t size = FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+				NULL, err, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&messageBuffer, 0, NULL);
+
+			std::string message(messageBuffer, size);
+
+			//Free the buffer.
+			LocalFree(messageBuffer);
+			std::cout << "Process exited with error: " << message << "\n";
+		}
 		throw std::runtime_error("The shader compilation failed.");
 	}
 
