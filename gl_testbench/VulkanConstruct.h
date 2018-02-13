@@ -104,6 +104,8 @@ void writeLayoutBinding(VkDescriptorSetLayoutBinding &layoutBinding, uint32_t bi
 /* Create a VkDescriptorSetLayout from the bindings.
 */
 VkDescriptorSetLayout createDescriptorLayout(VkDevice device, VkDescriptorSetLayoutBinding *bindings, size_t num_binding);
+VkDescriptorPool createDescriptorPool(VkDevice device, VkDescriptorPoolSize *sizeTypes, uint32_t num_types);
+VkDescriptorSet createDescriptorSet(VkDevice device, VkDescriptorPool pool, VkDescriptorSetLayout *layouts, uint32_t num_layout);
 #pragma endregion
 
 #pragma region Pipeline
@@ -717,6 +719,42 @@ VkDescriptorSetLayout createDescriptorLayout(VkDevice device, VkDescriptorSetLay
 	if (result != VK_SUCCESS)
 		throw std::runtime_error("Failed to create descriptor set layout.");
 	return layout;
+}
+
+
+VkDescriptorPool createDescriptorPool(VkDevice device, VkDescriptorPoolSize *sizeTypes, uint32_t num_types)
+{
+
+	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
+	descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	descriptorPoolCreateInfo.pNext = nullptr;
+	descriptorPoolCreateInfo.flags = 0;
+	descriptorPoolCreateInfo.maxSets = 1;
+	descriptorPoolCreateInfo.poolSizeCount = num_types;
+	descriptorPoolCreateInfo.pPoolSizes = sizeTypes;
+
+	VkDescriptorPool pool;
+	VkResult result = vkCreateDescriptorPool(device, &descriptorPoolCreateInfo, nullptr, &pool);
+	if (result != VK_SUCCESS)
+		throw std::runtime_error("Failed to create descriptor pool.");
+	return pool;
+}
+
+VkDescriptorSet createDescriptorSet(VkDevice device, VkDescriptorPool pool, VkDescriptorSetLayout *layouts, uint32_t num_layout)
+{
+	VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {};
+	descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	descriptorSetAllocateInfo.pNext = nullptr;
+	descriptorSetAllocateInfo.descriptorPool = pool;
+	descriptorSetAllocateInfo.descriptorSetCount = num_layout;
+	descriptorSetAllocateInfo.pSetLayouts = layouts;
+
+	// Create a descriptor set for descriptorSet
+	VkDescriptorSet set;
+	VkResult err = vkAllocateDescriptorSets(device, &descriptorSetAllocateInfo, &set);
+	if (err != VK_SUCCESS)
+		throw std::runtime_error("Failed to create descriptor set.");
+	return set;
 }
 #pragma endregion
 

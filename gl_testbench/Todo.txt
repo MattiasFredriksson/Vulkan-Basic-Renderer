@@ -1,12 +1,9 @@
 
 Points of interest:
 
-Fixed shaders (recompiled correct layout)
-Fixed Vertex validation error
 
 Issues:
 
-Creating process does not work for me, it returns OK but crashes, might be missing something in the folder (copied .exe to the folder)
 ImageViews+SurfaceKHR destruction isn't working properly (due to images not created properly?)
 
 Todo:

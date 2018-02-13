@@ -17,7 +17,7 @@ TechniqueVulkan::TechniqueVulkan(Material* m, RenderState* r, VulkanRenderer* re
 	createRenderPass();
 	createDescriptorSetLayout();
 	createPipeline();
-	createDescriptorSet();
+	createDescriptorParams();
 }
 
 TechniqueVulkan::~TechniqueVulkan()
@@ -154,18 +154,6 @@ void TechniqueVulkan::createPipeline()
 {
 	createShaders();
 
-	VkPipelineShaderStageCreateInfo vertexShaderStageInfo = {};
-	vertexShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-	vertexShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-	vertexShaderStageInfo.module = vertexShaderModule;
-	vertexShaderStageInfo.pName = "main";
-
-	VkPipelineShaderStageCreateInfo fragmentShaderStageInfo = {};
-	fragmentShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-	fragmentShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-	fragmentShaderStageInfo.module = fragmentShaderModule;
-	fragmentShaderStageInfo.pName = "main";
-
 	VkPipelineShaderStageCreateInfo stages[2];
 	stages[0] = defineShaderStage(VK_SHADER_STAGE_VERTEX_BIT, vertexShaderModule);
 	stages[1] = defineShaderStage(VK_SHADER_STAGE_FRAGMENT_BIT, fragmentShaderModule);
@@ -284,32 +272,12 @@ void TechniqueVulkan::createShaders()
 		throw std::runtime_error("Failed to create fragment shader module.");
 }
 
-void TechniqueVulkan::createDescriptorSet()
+
+void TechniqueVulkan::createDescriptorParams()
 {
-	createDescriptorPool();
-
-	VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {};
-	descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-	descriptorSetAllocateInfo.pNext = nullptr;
-	descriptorSetAllocateInfo.descriptorPool = descriptorPool;
-	descriptorSetAllocateInfo.descriptorSetCount = 1;
-	descriptorSetAllocateInfo.pSetLayouts = &vertexDataSetLayout;
-
-	// Create a descriptor set for descriptorSet
-	vkAllocateDescriptorSets(renderer->getDevice(), &descriptorSetAllocateInfo, &descriptorSet);
-
-	// Binding of resources to descriptors is done in updateDescriptors()
-}
-
-void TechniqueVulkan::createDescriptorPool()
-{
-	if (uniformBufferCount > 0)
-		requiredDescriptorTypes++;
-	if (combinedImageSamplerCount > 0)
-		requiredDescriptorTypes++;
-
 	// Describes how many of every descriptor type can be created in the pool
-	VkDescriptorPoolSize* descriptorSizes = new VkDescriptorPoolSize[requiredDescriptorTypes];
+	const uint32_t MAX_DESCRIPTOR_TYPES = 10; //10 is not verified
+	VkDescriptorPoolSize descriptorSizes[MAX_DESCRIPTOR_TYPES];
 
 	int i = 0;
 
@@ -318,28 +286,19 @@ void TechniqueVulkan::createDescriptorPool()
 		descriptorSizes[i].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 		descriptorSizes[i].descriptorCount = uniformBufferCount;
 		i++;
+		requiredDescriptorTypes++;
 	}
 	if (combinedImageSamplerCount > 0)
 	{
 		descriptorSizes[i].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 		descriptorSizes[i].descriptorCount = combinedImageSamplerCount;
 		i++;
+		requiredDescriptorTypes++;
 	}
-
-	// Create descriptor pool
-	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
-	descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-	descriptorPoolCreateInfo.pNext = nullptr;
-	descriptorPoolCreateInfo.flags = 0;
-	descriptorPoolCreateInfo.maxSets = 1;
-	descriptorPoolCreateInfo.poolSizeCount = requiredDescriptorTypes;
-	descriptorPoolCreateInfo.pPoolSizes = descriptorSizes;
-
-	VkResult result = vkCreateDescriptorPool(renderer->getDevice(), &descriptorPoolCreateInfo, nullptr, &descriptorPool);
-	if (result != VK_SUCCESS)
-		throw std::runtime_error("Failed to create descriptor pool.");
-
-	delete[] descriptorSizes;
+	// Create pool
+	descriptorPool = createDescriptorPool(renderer->getDevice(), descriptorSizes, i);
+	// Create set
+	descriptorSet = createDescriptorSet(renderer->getDevice(), descriptorPool, &vertexDataSetLayout, 1);
 }
 
 void TechniqueVulkan::setupWriteDescriptorSet(VkWriteDescriptorSet* descriptorSet, unsigned bindingSlot, VkDescriptorType type, VkDescriptorImageInfo* imageInfo, VkDescriptorBufferInfo* bufferInfo)

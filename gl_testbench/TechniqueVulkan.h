@@ -23,8 +23,7 @@ private:
 	void createDescriptorSetLayout();
 	void createPipeline();
 	void createShaders();
-	void createDescriptorSet();
-	void createDescriptorPool();
+	void createDescriptorParams();
 
 	// Assigns values to members of the VkWriteDescriptorSet struct. For a buffer descriptor, imageInfo must be nullptr, and vice versa
 	void setupWriteDescriptorSet(VkWriteDescriptorSet* descriptorSet, unsigned bindingSlot, VkDescriptorType type, VkDescriptorImageInfo* imageInfo, VkDescriptorBufferInfo* bufferInfo);	
