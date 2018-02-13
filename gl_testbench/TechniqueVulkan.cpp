@@ -358,16 +358,15 @@ std::string TechniqueVulkan::runCompiler(Material::ShaderType type, std::string 
 	
 	
 	DWORD exitCode;
-	bool result = GetExitCodeProcess(processInfo.hProcess, &exitCode);
+	bool acquired = GetExitCodeProcess(processInfo.hProcess, &exitCode);
 
-	if (!result)
+	if (!acquired)
 	{
+		printThreadError("Error: Fetching process error failed with msg: ");
 		throw std::runtime_error("Could not get exit code from process.");
 	}
-	if (exitCode) // An exit message was acquired:
+	else
 		std::cout << "Process exited with msg: " << exitCode << "\n";
-	else // Fetching the error failed, print the related error message:
-		printThreadError("Error fetch process error with msg: ");
 
 	CloseHandle(processInfo.hProcess);
 	CloseHandle(processInfo.hThread);
