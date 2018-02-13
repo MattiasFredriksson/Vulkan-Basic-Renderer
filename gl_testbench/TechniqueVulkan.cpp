@@ -407,6 +407,22 @@ std::string TechniqueVulkan::assembleDefines(Material::ShaderType type)
 	return args;
 }
 
+void printThreadError(const char *msg)
+{
+	DWORD err = GetLastError();
+	if (err != 0)
+	{
+		LPSTR messageBuffer = nullptr;
+		size_t size = FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+			NULL, err, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&messageBuffer, 0, NULL);
+
+		std::string message(messageBuffer, size);
+
+		//Free the buffer.
+		LocalFree(messageBuffer);
+		std::cout << msg << message << "\n";
+	}
+}
 // Returns output file name
 std::string TechniqueVulkan::runCompiler(Material::ShaderType type, std::string inputFileName)
 {
@@ -454,19 +470,19 @@ std::string TechniqueVulkan::runCompiler(Material::ShaderType type, std::string 
 	
 	
 	DWORD exitCode;
-	bool result = GetExitCodeProcess(processInfo.hProcess, &exitCode);
+	bool acquired = GetExitCodeProcess(processInfo.hProcess, &exitCode);
+
+	if (!acquired)
+	{
+		printThreadError("Error: Fetching process error failed with msg: ");
+		throw std::runtime_error("Could not get exit code from process.");
+	}
+	else
+		std::cout << "Process exited with msg: " << exitCode << "\n";
 
 	CloseHandle(processInfo.hProcess);
 	CloseHandle(processInfo.hThread);
 
-	if (!result)
-	{
-		throw std::runtime_error("Could not get exit code from process.");
-	}
-	if (exitCode)
-	{
-		throw std::runtime_error("The shader compilation failed.");
-	}
 
 	return (type == Material::ShaderType::VS) ? "..\\assets\\Vulkan\\vertexShader.spv" : "..\\assets\\Vulkan\\fragmentShader.spv";
 }
