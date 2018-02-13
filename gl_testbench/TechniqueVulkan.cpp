@@ -305,7 +305,7 @@ std::string TechniqueVulkan::runCompiler(Material::ShaderType type, std::string 
 	else if (type == Material::ShaderType::PS)
 		commandLineStr.append("-v -V -o fragmentShader.spv -e main ");
 
-	commandLineStr += inputFileName;
+	commandLineStr += "\"" + inputFileName + "\"";
 
 	LPSTR commandLine = const_cast<char *>(commandLineStr.c_str());
 	
