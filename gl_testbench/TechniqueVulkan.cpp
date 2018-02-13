@@ -295,6 +295,22 @@ std::string TechniqueVulkan::assembleDefines(Material::ShaderType type)
 	return args;
 }
 
+void printThreadError(const char *msg)
+{
+	DWORD err = GetLastError();
+	if (err != 0)
+	{
+		LPSTR messageBuffer = nullptr;
+		size_t size = FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+			NULL, err, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&messageBuffer, 0, NULL);
+
+		std::string message(messageBuffer, size);
+
+		//Free the buffer.
+		LocalFree(messageBuffer);
+		std::cout << msg << message << "\n";
+	}
+}
 // Returns output file name
 std::string TechniqueVulkan::runCompiler(Material::ShaderType type, std::string inputFileName)
 {
@@ -344,30 +360,18 @@ std::string TechniqueVulkan::runCompiler(Material::ShaderType type, std::string 
 	DWORD exitCode;
 	bool result = GetExitCodeProcess(processInfo.hProcess, &exitCode);
 
-	CloseHandle(processInfo.hProcess);
-	CloseHandle(processInfo.hThread);
-
 	if (!result)
 	{
 		throw std::runtime_error("Could not get exit code from process.");
 	}
-	if (!exitCode)
-	{
-		DWORD err = GetLastError();
-		if (err != 0)
-		{
-			LPSTR messageBuffer = nullptr;
-			size_t size = FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-				NULL, err, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&messageBuffer, 0, NULL);
+	if (exitCode) // An exit message was acquired:
+		std::cout << "Process exited with msg: " << exitCode << "\n";
+	else // Fetching the error failed, print the related error message:
+		printThreadError("Error fetch process error with msg: ");
 
-			std::string message(messageBuffer, size);
+	CloseHandle(processInfo.hProcess);
+	CloseHandle(processInfo.hThread);
 
-			//Free the buffer.
-			LocalFree(messageBuffer);
-			std::cout << "Process exited with error: " << message << "\n";
-		}
-		throw std::runtime_error("The shader compilation failed.");
-	}
 
 	return (type == Material::ShaderType::VS) ? "..\\assets\\Vulkan\\vertexShader.spv" : "..\\assets\\Vulkan\\fragmentShader.spv";
 }
