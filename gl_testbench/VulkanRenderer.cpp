@@ -76,8 +76,8 @@ Technique* VulkanRenderer::makeTechnique(Material* m, RenderState* r)
 
 int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 {
-	this->width = width;
-	this->height = height;
+	swapchainExtent.height = height;
+	swapchainExtent.width = width;
 
 	/* Create Vulkan instance
 	*/
@@ -137,13 +137,8 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 	w32sci.pNext = NULL;
 	w32sci.hinstance = GetModuleHandle(NULL);
 	w32sci.hwnd = info.info.win.window;
-	assert(
-		vkCreateWin32SurfaceKHR(
-			instance,
-			&w32sci,
-			nullptr,
-			&windowSurface)
-		== VK_SUCCESS);
+	VkResult err = vkCreateWin32SurfaceKHR(instance, &w32sci, nullptr, &windowSurface);
+	assert(err == VK_SUCCESS);
 
 
 	/* Create physical device
@@ -250,9 +245,6 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 	swapchainCreateInfo.minImageCount = surfaceCapabilities.minImageCount;
 	swapchainCreateInfo.imageFormat = formats[0].format;	// Just select the first available format
 	swapchainCreateInfo.imageColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
-	VkExtent2D swapchainExtent;
-	swapchainExtent.height = height;
-	swapchainExtent.width = width;
 	swapchainCreateInfo.imageExtent = swapchainExtent;
 	swapchainCreateInfo.imageArrayLayers = 1;
 	swapchainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
@@ -277,6 +269,21 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 	for (int i = 0; i < swapchainImages.size(); ++i)
 		swapchainImageViews[i] = createImageView(device, swapchainImages[i], swapchainCreateInfo.imageFormat);
 
+	// Create render pass
+	colorPass = createRenderPass_SingleColor(device, swapchainCreateInfo.imageFormat);
+
+	// Create frame buffers.
+	const int NUM_FRAME_ATTACH = 1;
+	swapChainFramebuffers.resize(swapchainImages.size() / NUM_FRAME_ATTACH);
+	for (size_t i = 0; i < swapChainFramebuffers.size(); i++)
+	{
+		VkImageView attachments[] = {
+			swapchainImageViews[i]
+		};
+		swapChainFramebuffers[i] = createFramebuffer(device, colorPass, swapchainExtent, attachments, NUM_FRAME_ATTACH);
+	}
+
+
 	// Create staging command pool
 	VkCommandPoolCreateInfo commandPoolCreateInfo = {};
 	commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -294,8 +301,13 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 		throw std::runtime_error("Failed to create staging command pool.");
 
 
+	// Stuff
+	imageAvailableSemaphore = createSemaphore(device);
+	renderFinishedSemaphore = createSemaphore(device);
+
 	return 0;
 }
+
 void VulkanRenderer::setWinTitle(const char* title)
 {
 	SDL_SetWindowTitle(window, title);
@@ -306,20 +318,26 @@ void VulkanRenderer::present()
 }
 int VulkanRenderer::shutdown()
 {
+	// Wait for device to finish before shuting down..
+	vkDeviceWaitIdle(device);
+
 	// Clean up Vulkan
 	vkDestroyCommandPool(device, drawingCommandPool, nullptr);
 	vkDestroyCommandPool(device, stagingCommandPool, nullptr);
 	vkDestroyBuffer(device, stagingBuffer, nullptr);
 
+	vkDestroySemaphore(device, renderFinishedSemaphore, nullptr);
+	vkDestroySemaphore(device, imageAvailableSemaphore, nullptr);
 
+	for (auto framebuffer : swapChainFramebuffers) 
+		vkDestroyFramebuffer(device, framebuffer, nullptr);
 	for (int i = 0; i < swapchainImageViews.size(); ++i)
 		vkDestroyImageView(device, swapchainImageViews[i], nullptr);
-	for (int i = 0; i < swapchainImages.size(); ++i)
-		vkDestroyImage(device, swapchainImages[i], nullptr);
 	for(uint32_t i = 0; i < memPool.size(); i++)
 		vkFreeMemory(device, memPool[i].handle, nullptr);
 
 	vkDestroySwapchainKHR(device, swapchain, nullptr);
+	vkDestroyRenderPass(device, colorPass, nullptr);
 	vkDestroySurfaceKHR(instance, windowSurface, nullptr);
 	vkDestroyDevice(device, nullptr);
 	vkDestroyInstance(instance, nullptr);
@@ -348,7 +366,77 @@ void VulkanRenderer::submit(Mesh* mesh)
 }
 void VulkanRenderer::frame()
 {
+	uint32_t imageIndex;
+	vkAcquireNextImageKHR(device, swapchain, std::numeric_limits<uint64_t>::max(), imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
 
+	VkCommandBufferAllocateInfo allocInfo = {};
+	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	allocInfo.commandPool = drawingCommandPool;
+	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	allocInfo.commandBufferCount = 1;
+
+	VkCommandBuffer cmdBuf;
+	if (vkAllocateCommandBuffers(device, &allocInfo, &cmdBuf) != VK_SUCCESS) {
+		throw std::runtime_error("failed to allocate command buffers!");
+	}
+
+	VkCommandBufferBeginInfo beginInfo = {};
+	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT;
+	beginInfo.pInheritanceInfo = nullptr; // Optional
+	vkBeginCommandBuffer(cmdBuf, &beginInfo);
+
+	//Render pass
+	VkRenderPassBeginInfo renderPassInfo = {};
+	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+	renderPassInfo.renderPass = colorPass;
+	renderPassInfo.framebuffer = swapChainFramebuffers[imageIndex];
+	renderPassInfo.renderArea.offset = { 0, 0 };
+	renderPassInfo.renderArea.extent = swapchainExtent;
+	VkClearValue clearColor = { 0.0f, 0.0f, 0.0f, 1.0f };
+	renderPassInfo.clearValueCount = 1;
+	renderPassInfo.pClearValues = &clearColor;
+
+	vkCmdBeginRenderPass(cmdBuf, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+	// Draw stuff..?:)
+
+	vkCmdEndRenderPass(cmdBuf);
+	if (vkEndCommandBuffer(cmdBuf) != VK_SUCCESS) {
+		throw std::runtime_error("failed to record command buffer!");
+	}
+
+	// Submit
+
+	VkSemaphore waitSemaphores[] = { imageAvailableSemaphore };
+	VkSemaphore signalSemaphores[] = { renderFinishedSemaphore };
+	VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+
+	VkSubmitInfo submitInfo = {};
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submitInfo.waitSemaphoreCount = 1;
+	submitInfo.pWaitSemaphores = waitSemaphores;
+	submitInfo.pWaitDstStageMask = waitStages;
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &cmdBuf;
+	submitInfo.signalSemaphoreCount = 1;
+	submitInfo.pSignalSemaphores = signalSemaphores;
+	if (vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
+		throw std::runtime_error("failed to submit draw command buffer!");
+	}
+
+	VkPresentInfoKHR presentInfo = {};
+	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+
+	presentInfo.waitSemaphoreCount = 1;
+	presentInfo.pWaitSemaphores = signalSemaphores;
+
+	VkSwapchainKHR swapChains[] = { swapchain };
+	presentInfo.swapchainCount = 1;
+	presentInfo.pSwapchains = swapChains;
+	presentInfo.pImageIndices = &imageIndex;
+	presentInfo.pResults = nullptr; // Optional
+	vkQueuePresentKHR(queue, &presentInfo);
 }
 
 VkDevice VulkanRenderer::getDevice()
@@ -514,12 +602,12 @@ VkSurfaceFormatKHR VulkanRenderer::getSwapchainFormat()
 
 unsigned int VulkanRenderer::getWidth()
 {
-	return width;
+	return swapchainExtent.width;
 }
 
 unsigned int VulkanRenderer::getHeight()
 {
-	return height;
+	return swapchainExtent.height;
 }
 
 void VulkanRenderer::updateStagingBuffer(const void* data, size_t size)

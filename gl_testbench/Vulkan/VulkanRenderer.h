@@ -99,8 +99,13 @@ private:
 	VkSurfaceKHR windowSurface;
 	VkSwapchainKHR swapchain;
 
-	std::vector<VkImage> swapchainImages;			// Array of images in the swapchain, use vkAquireNextImageKHR(...) to aquire image for drawing to
-	std::vector<VkImageView> swapchainImageViews;	// Image views for the swap chain images
+	std::vector<VkImage> swapchainImages;				// Array of images in the swapchain, use vkAquireNextImageKHR(...) to aquire image for drawing to
+	std::vector<VkImageView> swapchainImageViews;		// Image views for the swap chain images
+	std::vector<VkFramebuffer> swapChainFramebuffers;	// Combined sets of images that make up each frame buffer.
+	VkRenderPass colorPass;
+
+	VkSemaphore imageAvailableSemaphore;
+	VkSemaphore renderFinishedSemaphore;
 
 	glm::vec4 clearColor;
 
@@ -120,6 +125,5 @@ private:
 
 	VkSurfaceFormatKHR swapchainFormat;
 
-	unsigned int width;
-	unsigned int height;
+	VkExtent2D swapchainExtent;
 };

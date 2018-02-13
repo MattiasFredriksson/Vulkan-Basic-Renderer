@@ -1,13 +1,15 @@
 
 Points of interest:
 
+Created a render frame base (framebuffer, acquisation, present...), it 'seems' to be working ;)
+Fixed shutdown crash issue by letting swapchain destruction destroy it's images.
 
 Issues:
 
-ImageViews+SurfaceKHR destruction isn't working properly (due to images not created properly?)
+A 'few' objects not destroyed.
 
 Todo:
 
-Render commands
+Render stuff
 Create descriptors and a descriptor set in the materials
 ...

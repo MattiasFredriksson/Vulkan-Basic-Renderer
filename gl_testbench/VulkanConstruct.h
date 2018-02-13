@@ -51,12 +51,15 @@ inline T rmvFlag(T property, uint32_t rmv)
 /* Function declarations
 */
 
-VkPresentModeKHR chooseSwapPresentMode(VkPhysicalDevice &device, VkSurfaceKHR &surface, VkPresentModeKHR *prefered_modes, size_t num_prefered);
-
 /*	Queue selection */
 int anyQueueFamily(VkPhysicalDevice &device, VkQueueFlags* pref_queueFlag, int num_flag);
 int matchQueueFamily(VkPhysicalDevice &device, VkQueueFlags* pref_queueFlag, int num_flag);
 int pickQueueFamily(VkPhysicalDevice &device, VkQueueFlags* pref_queueFlag, int num_flag);
+
+/* Device*/
+
+
+VkSemaphore createSemaphore(VkDevice device);
 
 /* Device selection */
 namespace vk
@@ -72,6 +75,11 @@ int choosePhysicalDevice(VkInstance &instance, VkSurfaceKHR &surface, vk::isDevi
 
 std::vector<char*> checkValidationLayerSupport(char** validationLayers, size_t num_layer);
 
+/* Swap chain */
+
+VkPresentModeKHR chooseSwapPresentMode(VkPhysicalDevice &device, VkSurfaceKHR &surface, VkPresentModeKHR *prefered_modes, size_t num_prefered);
+VkFramebuffer createFramebuffer(VkDevice device, VkRenderPass pass, VkExtent2D frameDim, VkImageView *attachments, uint32_t num_attachment);
+VkRenderPass createRenderPass_SingleColor(VkDevice device, VkFormat swapChainImgFormat);
 
 /* Memory */
 
@@ -144,29 +152,9 @@ VkPipelineVertexInputStateCreateInfo defineVertexBufferBindings(
 #ifdef VULKAN_DEVICE_IMPLEMENTATION
 
 
-VkPresentModeKHR chooseSwapPresentMode(VkPhysicalDevice &device, VkSurfaceKHR &surface, VkPresentModeKHR *prefered_modes, size_t num_prefered) {
+#pragma region Device
 
-	// Find available present modes of the device
-	std::vector<VkPresentModeKHR> presentModes;
-	VkResult err;
-	ALLOC_QUERY_ASSERT(err, vkGetPhysicalDeviceSurfacePresentModesKHR, presentModes, device, surface);
-#ifdef _DEBUG
-	// Output present modes:
-	std::cout << presentModes.size() << " present mode(s)\n";
-	for (size_t i = 0; i < presentModes.size() - 1; i++)
-		std::cout << presentModes[i] << ", ";
-	std::cout << presentModes[presentModes.size() - 1] << "\n";
-#endif
-
-	// Find an acceptable present mode
-	for (size_t i = 0; i < num_prefered; i++)
-	{
-		if (hasMode(prefered_modes[i], presentModes.data(), presentModes.size()))
-			return prefered_modes[i];
-	}
-	// 'Guaranteed' to exist
-	return VK_PRESENT_MODE_FIFO_KHR;
-}
+#pragma region Selection
 
 /* Find any queue family supporting the specific queue preferences.
 */
@@ -348,6 +336,125 @@ std::vector<char*> checkValidationLayerSupport(char** validationLayers, size_t n
 
 	return available;
 }
+
+#pragma endregion
+
+/* Create a semaphore
+*/
+VkSemaphore createSemaphore(VkDevice device) {
+	VkSemaphoreCreateInfo semaphoreInfo = {};
+	semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+	semaphoreInfo.flags = 0;
+	semaphoreInfo.pNext = nullptr;
+	VkSemaphore semaphore;
+	if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &semaphore) != VK_SUCCESS)
+		throw std::runtime_error("failed to create semaphores!");
+	return semaphore;
+}
+
+#pragma endregion
+
+#pragma region Swapchain
+
+VkPresentModeKHR chooseSwapPresentMode(VkPhysicalDevice &device, VkSurfaceKHR &surface, VkPresentModeKHR *prefered_modes, size_t num_prefered) {
+
+	// Find available present modes of the device
+	std::vector<VkPresentModeKHR> presentModes;
+	VkResult err;
+	ALLOC_QUERY_ASSERT(err, vkGetPhysicalDeviceSurfacePresentModesKHR, presentModes, device, surface);
+#ifdef _DEBUG
+	// Output present modes:
+	std::cout << presentModes.size() << " present mode(s)\n";
+	for (size_t i = 0; i < presentModes.size() - 1; i++)
+		std::cout << presentModes[i] << ", ";
+	std::cout << presentModes[presentModes.size() - 1] << "\n";
+#endif
+
+	// Find an acceptable present mode
+	for (size_t i = 0; i < num_prefered; i++)
+	{
+		if (hasMode(prefered_modes[i], presentModes.data(), presentModes.size()))
+			return prefered_modes[i];
+	}
+	// 'Guaranteed' to exist
+	return VK_PRESENT_MODE_FIFO_KHR;
+}
+
+
+/* Create a frame buffer. A collection of swapchain image views that define the framebuffer targets.
+pass			<<
+frameDim		<<	Dimension of the frame buffer
+attachments		<<	Attached frame buffer image targets.
+num_attachment	<<	Number of attached images.
+*/
+VkFramebuffer createFramebuffer(VkDevice device, VkRenderPass pass, VkExtent2D frameDim, VkImageView *attachments, uint32_t num_attachment) 
+{
+
+	VkFramebufferCreateInfo info = {};
+	info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+	info.renderPass = pass;
+	info.attachmentCount = num_attachment;
+	info.pAttachments = attachments;
+	info.width = frameDim.width;
+	info.height = frameDim.height;
+	info.layers = 1;
+
+	VkFramebuffer frameBuffer;
+	if (vkCreateFramebuffer(device, &info, nullptr, &frameBuffer) != VK_SUCCESS) {
+		throw std::runtime_error("failed to create framebuffer!");
+	}
+	return frameBuffer;
+}
+
+/* Create a simple single render pass with attached color buffer.
+*/
+VkRenderPass createRenderPass_SingleColor(VkDevice device, VkFormat swapChainImgFormat) {
+	VkAttachmentDescription colAttach = {};
+	colAttach.format = swapChainImgFormat;
+	colAttach.samples = VK_SAMPLE_COUNT_1_BIT;
+	colAttach.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;					// Clear col/depth buff before rendering.
+	colAttach.storeOp = VK_ATTACHMENT_STORE_OP_STORE;				// Store col/depth buff data for access/present.
+	colAttach.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	colAttach.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	colAttach.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	colAttach.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+	// Referenced renderbuffer target
+	VkAttachmentReference colorAttachmentRef = {};
+	colorAttachmentRef.attachment = 0;
+	colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+	VkSubpassDescription subpass = {};
+	subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+	subpass.colorAttachmentCount = 1;
+	subpass.pColorAttachments = &colorAttachmentRef;
+	subpass.pDepthStencilAttachment = NULL;
+
+	// Specify dependency for transitioning the image layout for rendering. 
+	VkSubpassDependency dependency = {};
+	dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+	dependency.dstSubpass = 0;
+	dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	dependency.srcAccessMask = 0;
+	dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+	VkRenderPassCreateInfo renderPassInfo = {};
+	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+	renderPassInfo.attachmentCount = 1;
+	renderPassInfo.pAttachments = &colAttach;
+	renderPassInfo.subpassCount = 1;
+	renderPassInfo.pSubpasses = &subpass;
+	renderPassInfo.dependencyCount = 1;
+	renderPassInfo.pDependencies = &dependency;
+
+	VkRenderPass pass;
+	if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &pass) != VK_SUCCESS) {
+		throw std::runtime_error("failed to create render pass!");
+	}
+	return pass;
+}
+#pragma endregion
 
 #pragma region Memory
 
