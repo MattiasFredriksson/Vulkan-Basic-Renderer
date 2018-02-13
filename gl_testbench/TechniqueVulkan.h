@@ -7,6 +7,8 @@
 
 class Renderer;
 
+
+
 class TechniqueVulkan : public Technique
 {
 public:

@@ -10,6 +10,9 @@
 #include <codecvt>
 #include "VulkanConstruct.h"
 
+
+const uint32_t MAX_DESCRIPTOR_TYPES = 2; //2 for this solution...
+
 TechniqueVulkan::TechniqueVulkan(Material* m, RenderState* r, VulkanRenderer* renderer) : Technique(m, r)
 {
 	setRenderer(renderer);
@@ -36,8 +39,7 @@ void TechniqueVulkan::setRenderer(VulkanRenderer* renderer)
 
 void TechniqueVulkan::updateDescriptors(VkDescriptorBufferInfo* translationBufferDescriptorInfo, VkDescriptorImageInfo* textureDescriptorInfo)
 {
-	VkWriteDescriptorSet* writes = new VkWriteDescriptorSet[uniformBufferCount + combinedImageSamplerCount];
-
+	VkWriteDescriptorSet writes[MAX_DESCRIPTOR_TYPES];
 	int index = 0;
 
 	if (textureDescriptorInfo)
@@ -61,9 +63,7 @@ void TechniqueVulkan::updateDescriptors(VkDescriptorBufferInfo* translationBuffe
 	}
 
 	// Write the info into the descriptor set
-	vkUpdateDescriptorSets(renderer->getDevice(), 1, writes, 0, nullptr);
-
-	delete[] writes;
+	vkUpdateDescriptorSets(renderer->getDevice(), index, writes, 0, nullptr);
 }
 
 void TechniqueVulkan::createRenderPass()
@@ -276,7 +276,6 @@ void TechniqueVulkan::createShaders()
 void TechniqueVulkan::createDescriptorParams()
 {
 	// Describes how many of every descriptor type can be created in the pool
-	const uint32_t MAX_DESCRIPTOR_TYPES = 10; //10 is not verified
 	VkDescriptorPoolSize descriptorSizes[MAX_DESCRIPTOR_TYPES];
 
 	int i = 0;

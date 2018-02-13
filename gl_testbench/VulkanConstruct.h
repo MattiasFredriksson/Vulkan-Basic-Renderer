@@ -752,8 +752,10 @@ VkDescriptorSet createDescriptorSet(VkDevice device, VkDescriptorPool pool, VkDe
 	// Create a descriptor set for descriptorSet
 	VkDescriptorSet set;
 	VkResult err = vkAllocateDescriptorSets(device, &descriptorSetAllocateInfo, &set);
+#ifdef _DEBUG
 	if (err != VK_SUCCESS)
 		throw std::runtime_error("Failed to create descriptor set.");
+#endif
 	return set;
 }
 #pragma endregion
