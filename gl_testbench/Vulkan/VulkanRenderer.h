@@ -61,7 +61,7 @@ public:
 	void setClearColor(float r, float g, float b, float a);
 	void clearBuffer(unsigned int flag);
 	void setRenderState(RenderState* ps);
-	void submit(Mesh* mesh);
+	void submit(Mesh* mesh);	// Get translation buffer from mesh, send it to technique, which binds it and then binds the descriptor set to the pipeline
 	void frame();
 
 	VkDevice getDevice();

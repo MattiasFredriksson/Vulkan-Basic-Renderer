@@ -15,12 +15,14 @@ TechniqueVulkan::TechniqueVulkan(Material* m, RenderState* r, VulkanRenderer* re
 	setRenderer(renderer);
 
 	createRenderPass();
-	createDescriptorSet();
+	createDescriptorSetLayout();
 	createPipeline();
+	createDescriptorSet();
 }
 
 TechniqueVulkan::~TechniqueVulkan()
 {
+	vkDestroyDescriptorPool(renderer->getDevice(), descriptorPool, nullptr);
 }
 
 void TechniqueVulkan::enable(Renderer* renderer)
@@ -30,6 +32,38 @@ void TechniqueVulkan::enable(Renderer* renderer)
 void TechniqueVulkan::setRenderer(VulkanRenderer* renderer)
 {
 	this->renderer = renderer;
+}
+
+void TechniqueVulkan::updateDescriptors(VkDescriptorBufferInfo* translationBufferDescriptorInfo, VkDescriptorImageInfo* textureDescriptorInfo)
+{
+	VkWriteDescriptorSet* writes = new VkWriteDescriptorSet[uniformBufferCount + combinedImageSamplerCount];
+
+	int index = 0;
+
+	if (textureDescriptorInfo)
+	{
+		setupWriteDescriptorSet(&writes[index], DIFFUSE_SLOT, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, textureDescriptorInfo, nullptr);
+		++index;
+	}
+
+	if (translationBufferDescriptorInfo)
+	{
+		setupWriteDescriptorSet(&writes[index], TRANSLATION, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nullptr, translationBufferDescriptorInfo);
+		++index;
+	}
+
+	std::vector<std::pair<unsigned, VkDescriptorBufferInfo*>> bufferInfos = ((MaterialVulkan*)material)->getBufferInfos();
+
+	for (auto infos : bufferInfos)
+	{
+		setupWriteDescriptorSet(&writes[index], infos.first, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nullptr, infos.second);
+		++index;
+	}
+
+	// Write the info into the descriptor set
+	vkUpdateDescriptorSets(renderer->getDevice(), 1, writes, 0, nullptr);
+
+	delete[] writes;
 }
 
 void TechniqueVulkan::createRenderPass()
@@ -85,13 +119,14 @@ void TechniqueVulkan::createRenderPass()
 		throw std::runtime_error("Failed to create renderpass.");
 }
 
-void TechniqueVulkan::createDescriptorSet()
+void TechniqueVulkan::createDescriptorSetLayout()
 {
 	// This is all hardcoded, not very good
 	std::vector<VkDescriptorSetLayoutBinding> layoutBindings;
 
 	if (((MaterialVulkan*)material)->hasDefine(Material::ShaderType::VS, "#define TRANSLATION "))
 	{
+		uniformBufferCount++;
 		layoutBindings.push_back(VkDescriptorSetLayoutBinding{});
 		writeLayoutBinding(layoutBindings.back(), TRANSLATION, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT);
 	}
@@ -100,12 +135,14 @@ void TechniqueVulkan::createDescriptorSet()
 	stage |= ((MaterialVulkan*)material)->hasDefine(Material::ShaderType::PS, "#define DIFFUSE_TINT ") ? VK_SHADER_STAGE_FRAGMENT_BIT : 0;
 	if (stage)
 	{
+		uniformBufferCount++;
 		layoutBindings.push_back(VkDescriptorSetLayoutBinding{});
 		writeLayoutBinding(layoutBindings.back(), DIFFUSE_TINT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, stage);
 	}
 
 	if (((MaterialVulkan*)material)->hasDefine(Material::ShaderType::PS, "#define DIFFUSE_SLOT "))
 	{
+		combinedImageSamplerCount++;
 		layoutBindings.push_back(VkDescriptorSetLayoutBinding{});
 		writeLayoutBinding(layoutBindings.back(), DIFFUSE_SLOT, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT);
 	}
@@ -210,6 +247,9 @@ void TechniqueVulkan::createPipeline()
 
 	result = vkCreateGraphicsPipelines(renderer->getDevice(), VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &pipeline);
 
+	vkDestroyShaderModule(renderer->getDevice(), vertexShaderModule, nullptr);
+	vkDestroyShaderModule(renderer->getDevice(), fragmentShaderModule, nullptr);
+
 	if (result != VK_SUCCESS)
 		throw std::runtime_error("Failed to create pipeline.");
 }
@@ -242,6 +282,78 @@ void TechniqueVulkan::createShaders()
 	result = vkCreateShaderModule(renderer->getDevice(), &shaderModuleCreateInfo, nullptr, &fragmentShaderModule);
 	if (result != VK_SUCCESS)
 		throw std::runtime_error("Failed to create fragment shader module.");
+}
+
+void TechniqueVulkan::createDescriptorSet()
+{
+	createDescriptorPool();
+
+	VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {};
+	descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	descriptorSetAllocateInfo.pNext = nullptr;
+	descriptorSetAllocateInfo.descriptorPool = descriptorPool;
+	descriptorSetAllocateInfo.descriptorSetCount = 1;
+	descriptorSetAllocateInfo.pSetLayouts = &vertexDataSetLayout;
+
+	// Create a descriptor set for descriptorSet
+	vkAllocateDescriptorSets(renderer->getDevice(), &descriptorSetAllocateInfo, &descriptorSet);
+
+	// Binding of resources to descriptors is done in updateDescriptors()
+}
+
+void TechniqueVulkan::createDescriptorPool()
+{
+	if (uniformBufferCount > 0)
+		requiredDescriptorTypes++;
+	if (combinedImageSamplerCount > 0)
+		requiredDescriptorTypes++;
+
+	// Describes how many of every descriptor type can be created in the pool
+	VkDescriptorPoolSize* descriptorSizes = new VkDescriptorPoolSize[requiredDescriptorTypes];
+
+	int i = 0;
+
+	if (uniformBufferCount > 0)
+	{
+		descriptorSizes[i].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		descriptorSizes[i].descriptorCount = uniformBufferCount;
+		i++;
+	}
+	if (combinedImageSamplerCount > 0)
+	{
+		descriptorSizes[i].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		descriptorSizes[i].descriptorCount = combinedImageSamplerCount;
+		i++;
+	}
+
+	// Create descriptor pool
+	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
+	descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	descriptorPoolCreateInfo.pNext = nullptr;
+	descriptorPoolCreateInfo.flags = 0;
+	descriptorPoolCreateInfo.maxSets = 1;
+	descriptorPoolCreateInfo.poolSizeCount = requiredDescriptorTypes;
+	descriptorPoolCreateInfo.pPoolSizes = descriptorSizes;
+
+	VkResult result = vkCreateDescriptorPool(renderer->getDevice(), &descriptorPoolCreateInfo, nullptr, &descriptorPool);
+	if (result != VK_SUCCESS)
+		throw std::runtime_error("Failed to create descriptor pool.");
+
+	delete[] descriptorSizes;
+}
+
+void TechniqueVulkan::setupWriteDescriptorSet(VkWriteDescriptorSet* descriptorSet, unsigned bindingSlot, VkDescriptorType type, VkDescriptorImageInfo* imageInfo, VkDescriptorBufferInfo* bufferInfo)
+{
+	descriptorSet->sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	descriptorSet->pNext = nullptr;
+	descriptorSet->dstSet = this->descriptorSet;
+	descriptorSet->dstBinding = bindingSlot;
+	descriptorSet->dstArrayElement = 0;
+	descriptorSet->descriptorCount = 1;
+	descriptorSet->descriptorType = type;
+	descriptorSet->pImageInfo = imageInfo;
+	descriptorSet->pBufferInfo = bufferInfo;
+	descriptorSet->pTexelBufferView = nullptr;
 }
 
 const char *path = "..\\assets\\Vulkan\\";

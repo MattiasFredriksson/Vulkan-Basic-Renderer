@@ -21,10 +21,12 @@ void MaterialVulkan::setShader(const std::string & shaderFileName, ShaderType ty
 
 void MaterialVulkan::removeShader(ShaderType type)
 {
+	shaderFileNames.erase(type);
 }
 
 void MaterialVulkan::setDiffuse(Color c)
 {
+	color = c;
 }
 
 int MaterialVulkan::compileMaterial(std::string & errString)
@@ -67,4 +69,18 @@ bool MaterialVulkan::hasDefine(Material::ShaderType shaderType, std::string sear
 			return true;
 	}
 	return false;
+}
+
+std::vector<std::pair<unsigned, VkDescriptorBufferInfo*>> MaterialVulkan::getBufferInfos()
+{
+	std::vector<std::pair<unsigned, VkDescriptorBufferInfo*>> bufferInfos;
+
+	for (auto cb : constantBuffers)
+	{
+		bufferInfos.push_back(std::make_pair(
+			cb.first, ((ConstantBufferVulkan*)cb.second)->getDescriptorBufferInfo()
+		));
+	}
+
+	return bufferInfos;
 }

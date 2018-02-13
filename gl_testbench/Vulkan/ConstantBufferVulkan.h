@@ -13,6 +13,8 @@ public:
 	void bind(Material*);
 	void init(VulkanRenderer* renderer);
 
+	VkDescriptorBufferInfo* getDescriptorBufferInfo();
+
 private:
 	VulkanRenderer* renderer;
 
@@ -21,5 +23,6 @@ private:
 	size_t poolOffset, memSize;
 
 	VkBuffer buffer;
+	VkDescriptorBufferInfo descriptorBufferInfo;
 };
 

@@ -3,6 +3,7 @@
 #include "Technique.h"
 #include "vulkan\vulkan.h"
 #include "Vulkan\VulkanRenderer.h"
+#include <map>
 
 class Renderer;
 
@@ -16,11 +17,17 @@ public:
 	virtual void enable(Renderer* renderer);
 
 	void setRenderer(VulkanRenderer* renderer);
+	void updateDescriptors(VkDescriptorBufferInfo* translationBufferDescriptorInfo, VkDescriptorImageInfo* textureDescriptorInfo);	// Updates the description set with the specified translation buffer and texture
 private:
 	void createRenderPass();
-	void createDescriptorSet();
+	void createDescriptorSetLayout();
 	void createPipeline();
 	void createShaders();
+	void createDescriptorSet();
+	void createDescriptorPool();
+
+	// Assigns values to members of the VkWriteDescriptorSet struct. For a buffer descriptor, imageInfo must be nullptr, and vice versa
+	void setupWriteDescriptorSet(VkWriteDescriptorSet* descriptorSet, unsigned bindingSlot, VkDescriptorType type, VkDescriptorImageInfo* imageInfo, VkDescriptorBufferInfo* bufferInfo);	
 	std::string assembleShader(Material::ShaderType type);
 	std::string assembleDefines(Material::ShaderType type);
 	std::string runCompiler(Material::ShaderType type, std::string inputFileName);
@@ -38,5 +45,12 @@ private:
 
 	VkShaderModule vertexShaderModule;
 	VkShaderModule fragmentShaderModule;
+
+	VkDescriptorPool descriptorPool;
+	uint32_t uniformBufferCount = 0;
+	uint32_t combinedImageSamplerCount = 0;
+	uint32_t requiredDescriptorTypes = 0;
+
+	VkDescriptorSet descriptorSet;
 };
 
