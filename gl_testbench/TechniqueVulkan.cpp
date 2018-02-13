@@ -332,7 +332,7 @@ std::string TechniqueVulkan::runCompiler(Material::ShaderType type, std::string 
 	LPSTARTUPINFOA startupInfoPointer = &startupInfo;
 
 	PROCESS_INFORMATION processInfo = {};
-	if (!CreateProcessA("..\\assets\\Vulkan\\glslangValidator.exe", commandLine, NULL, NULL, FALSE, CREATE_NEW_CONSOLE, NULL, path, startupInfoPointer, &processInfo))
+	if (!CreateProcessA("..\\assets\\Vulkan\\glslangValidator.exe", commandLine, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, path, startupInfoPointer, &processInfo))
 	{
 		//HRESULT res = HRESULT_FROM_WIN32(GetLastError());
 		throw std::runtime_error("Failed to start shader compilation process.");
@@ -350,11 +350,10 @@ std::string TechniqueVulkan::runCompiler(Material::ShaderType type, std::string 
 	if (!result)
 	{
 		throw std::runtime_error("Could not get exit code from process.");
-
-		if (!exitCode)
-		{
-			throw std::runtime_error("The shader compilation failed.");
-		}
+	}
+	if (exitCode)
+	{
+		throw std::runtime_error("The shader compilation failed.");
 	}
 
 	return (type == Material::ShaderType::VS) ? "..\\assets\\Vulkan\\vertexShader.spv" : "..\\assets\\Vulkan\\fragmentShader.spv";
