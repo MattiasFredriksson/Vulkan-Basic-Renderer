@@ -76,6 +76,8 @@ public:
 	void transitionImageFormat(VkImage image, VkFormat format, VkImageLayout fromLayout, VkImageLayout toLayout);
 
 	VkSurfaceFormatKHR getSwapchainFormat();
+	VkCommandBuffer getFrameCmdBuf();
+
 
 	unsigned int getWidth();
 	unsigned int getHeight();
@@ -106,6 +108,7 @@ private:
 
 	VkSemaphore imageAvailableSemaphore;
 	VkSemaphore renderFinishedSemaphore;
+	VkCommandBuffer _frameCmdBuf;
 
 	glm::vec4 clearColor;
 

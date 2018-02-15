@@ -37,6 +37,7 @@ glGet##X##InfoLog(S, 1024, nullptr, buff);\
 OUT=std::string(buff);\
 }
 
+const uint32_t MAX_DESCRIPTOR_TYPES = 2; //2 for this solution...
 
 class MaterialVulkan :
 	public Material
@@ -44,7 +45,7 @@ class MaterialVulkan :
 	friend VulkanRenderer;
 
 public:
-	MaterialVulkan(const std::string& name);
+	MaterialVulkan(const std::string& name, VulkanRenderer *renderHandle);
 	~MaterialVulkan();
 	void setShader(const std::string& shaderFileName, ShaderType type);
 	void removeShader(ShaderType type);
@@ -60,16 +61,40 @@ public:
 
 	void disable();
 
-	void setRenderer(VulkanRenderer* renderer);
-
 	// Returns true if the defines for shaderType includes searchString
 	bool hasDefine(Material::ShaderType shaderType, std::string searchString);
 
 	std::vector<std::pair<unsigned, VkDescriptorBufferInfo*>> getBufferInfos();
 
+	VkShaderModule vertexShader;
+	VkShaderModule fragmentShader;
+	VkPipelineLayout pipelineLayout;
+	uint32_t uniformBufferCount = 0;
+	uint32_t combinedImageSamplerCount = 0;
+
 private:
-	VulkanRenderer* renderer;	// Pointer to the renderer that created this material
+	std::string name;
+	VulkanRenderer* _renderHandle;	// Pointer to the renderer that created this material
 	std::map<unsigned int, ConstantBuffer*> constantBuffers;
+	bool spawned;
+
+	VkDescriptorSet descriptorSet;
+	VkDescriptorPool descriptorPool;
+	VkDescriptorSetLayout vertexDataSetLayout;
+
+
+	void createDescriptorSetLayout();
+	void generatePipelineLayout();
+
+	int createShaders();
+	void destroyShaderObjects();
+	std::string assembleShader(Material::ShaderType type);
+	std::string assembleDefines(Material::ShaderType type);
+	std::string runCompiler(Material::ShaderType type, std::string inputFileName);
+	std::vector<char> loadSPIR_V(std::string fileName);
+
+	void createDescriptorSetLayout();
+	void createDescriptorParams();
 };
 
 #pragma once

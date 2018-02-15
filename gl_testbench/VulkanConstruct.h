@@ -103,16 +103,19 @@ void endSingleCommand_Wait(VkDevice device, VkQueue queue, VkCommandPool command
 
 #pragma region Descriptors
 
-/* Write a image descriptor
+/* Fill a VkWriteDescriptorSet with VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER write info.
 */
-void writeDescriptorStruct(VkWriteDescriptorSet &writeStruct, VkDescriptorSet &descriptorSet, VkDescriptorImageInfo *imageInfo, uint32_t dstBinding, uint32_t dstArrayElem = 0);
+void writeDescriptorStruct_IMG_COMBINED(VkWriteDescriptorSet &writeInfo, VkDescriptorSet dstSet, uint32_t dstBinding, uint32_t dstArrayElem, uint32_t descriptorCount, VkDescriptorImageInfo *imageInfo);
+/* Fill a VkWriteDescriptorSet with VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER write info.
+*/
+void writeDescriptorStruct_UNI_BUFFER(VkWriteDescriptorSet &writeInfo, VkDescriptorSet dstSet, uint32_t dstBinding, uint32_t dstArrayElem, uint32_t descriptorCount, VkDescriptorBufferInfo* bufferInfo);
 /* Write a image layout binding
 */
 void writeLayoutBinding(VkDescriptorSetLayoutBinding &layoutBinding, uint32_t binding, VkDescriptorType type, VkShaderStageFlags stage);
 /* Create a VkDescriptorSetLayout from the bindings.
 */
 VkDescriptorSetLayout createDescriptorLayout(VkDevice device, VkDescriptorSetLayoutBinding *bindings, size_t num_binding);
-VkDescriptorPool createDescriptorPool(VkDevice device, VkDescriptorPoolSize *sizeTypes, uint32_t num_types);
+VkDescriptorPool createDescriptorPool(VkDevice device, VkDescriptorPoolSize *sizeTypes, uint32_t num_types, uint32_t poolSize);
 VkDescriptorSet createDescriptorSet(VkDevice device, VkDescriptorPool pool, VkDescriptorSetLayout *layouts, uint32_t num_layout);
 #pragma endregion
 
@@ -128,7 +131,9 @@ VkPipelineInputAssemblyStateCreateInfo defineInputAssembly(VkPrimitiveTopology p
 VkPipelineMultisampleStateCreateInfo defineMultiSampling_OFF();
 VkPipelineColorBlendStateCreateInfo defineBlendState_LogicOp(VkPipelineColorBlendAttachmentState *blendStateAttachments, uint32_t num_attachments, VkLogicOp logic_op, glm::vec4 blendConstants = glm::vec4(0));
 VkPipelineColorBlendStateCreateInfo defineBlendState(VkPipelineColorBlendAttachmentState *blendStateAttachments, uint32_t num_attachments, glm::vec4 blendConstants = glm::vec4(0));
-VkPipelineLayoutCreateInfo defineUniformLayout(VkDescriptorSetLayout *descriptorSet, uint32_t num_descriptors);
+/* Define a simple uniform layout using uniform buffers (no push constants).
+*/
+VkPipelineLayout createPipelineLayout(VkDevice device, VkDescriptorSetLayout *descriptorSet, uint32_t num_descriptors);
 
 
 typedef enum RasterizationFlagBits
@@ -787,17 +792,66 @@ void endSingleCommand_Wait(VkDevice device, VkQueue queue, VkCommandPool command
 
 #pragma region Descriptors
 
-/* Fill a combined image sampler to a descriptor set write struct.
+/* Fill a VkWriteDescriptorSet with VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER write info.
+writeInfo		<<	Struct filled with the params.
+dstSet			<<	Destination descriptor set (set updated)
+dstBinding		<<	Descriptor binding within the set that is updated.
+dstArrayElement	<<	Destination element within the array.
+descriptorCount	<<	Number of descriptors updated (number of elements in the imageInfo array)
+imageInfo		<<	Array of ImageInfo updated within the descriptor set.
 */
-void writeDescriptorStruct(VkWriteDescriptorSet &writeStruct, VkDescriptorSet &descriptorSet, VkDescriptorImageInfo *imageInfo, uint32_t dstBinding, uint32_t dstArrayElem)
+void writeDescriptorStruct_IMG_COMBINED(VkWriteDescriptorSet &writeInfo, VkDescriptorSet dstSet, uint32_t dstBinding, uint32_t dstArrayElem, uint32_t descriptorCount, VkDescriptorType type, VkDescriptorImageInfo *imageInfo)
 {
-	writeStruct.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	writeStruct.dstSet = descriptorSet;
-	writeStruct.dstBinding = dstBinding;
-	writeStruct.dstArrayElement = dstArrayElem;
-	writeStruct.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	writeStruct.descriptorCount = 1;
-	writeStruct.pImageInfo = imageInfo;
+	writeInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeInfo.dstSet = dstSet;
+	writeInfo.dstBinding = dstBinding;
+	writeInfo.dstArrayElement = dstArrayElem;
+	writeInfo.descriptorCount = descriptorCount;
+	writeInfo.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	writeInfo.pImageInfo = imageInfo;
+	writeInfo.pBufferInfo = nullptr;
+	writeInfo.pTexelBufferView = nullptr;
+}
+
+/* Fill a VkWriteDescriptorSet with VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER write info.
+writeInfo		<<	Struct filled with the params.
+dstSet			<<	Destination descriptor set (set updated)
+dstBinding		<<	Descriptor binding within the set that is updated.
+dstArrayElement	<<	Destination element within the array.
+descriptorCount	<<	Number of descriptors updated (number of elements in the imageInfo array)
+imageInfo		<<	Array of VkDescriptorImageInfo updated within the descriptor set.
+*/
+void writeDescriptorStruct_IMG_COMBINED(VkWriteDescriptorSet &writeInfo, VkDescriptorSet dstSet, uint32_t dstBinding, uint32_t dstArrayElem, uint32_t descriptorCount, VkDescriptorImageInfo *imageInfo)
+{
+	writeInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeInfo.dstSet = dstSet;
+	writeInfo.dstBinding = dstBinding;
+	writeInfo.dstArrayElement = dstArrayElem;
+	writeInfo.descriptorCount = descriptorCount;
+	writeInfo.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	writeInfo.pImageInfo = imageInfo;
+	writeInfo.pBufferInfo = nullptr;
+	writeInfo.pTexelBufferView = nullptr;
+}
+/* Fill a VkWriteDescriptorSet with VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER write info.
+writeInfo		<<	Struct filled with the params.
+dstSet			<<	Destination descriptor set (set updated)
+dstBinding		<<	Descriptor binding within the set that is updated.
+dstArrayElement	<<	Destination element within the array.
+descriptorCount	<<	Number of descriptors updated (number of elements in the bufferInfo array)
+bufferInfo		<<	Array of VkDescriptorBufferInfo updated within the descriptor set.
+*/
+void writeDescriptorStruct_UNI_BUFFER(VkWriteDescriptorSet &writeInfo, VkDescriptorSet dstSet, uint32_t dstBinding, uint32_t dstArrayElem, uint32_t descriptorCount, VkDescriptorBufferInfo* bufferInfo)
+{
+	writeInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeInfo.dstSet = dstSet;
+	writeInfo.dstBinding = dstBinding;
+	writeInfo.dstArrayElement = dstArrayElem;
+	writeInfo.descriptorCount = descriptorCount;
+	writeInfo.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	writeInfo.pImageInfo = nullptr;
+	writeInfo.pBufferInfo = bufferInfo;
+	writeInfo.pTexelBufferView = nullptr;
 }
 /* Write layout binding
 */
@@ -828,8 +882,13 @@ VkDescriptorSetLayout createDescriptorLayout(VkDevice device, VkDescriptorSetLay
 	return layout;
 }
 
-
-VkDescriptorPool createDescriptorPool(VkDevice device, VkDescriptorPoolSize *sizeTypes, uint32_t num_types)
+/* Create a descriptor pool from the params.
+device	<< 
+sizeTypes	<<	Array of descriptors defining the descriptors allocated in the pool.
+num_types	<<	Length of the 'sizeTypes' array
+poolSize	<<	Max number of descriptors sets allocated from the pool.
+*/
+VkDescriptorPool createDescriptorPool(VkDevice device, VkDescriptorPoolSize *sizeTypes, uint32_t num_types, uint32_t poolSize)
 {
 
 	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
@@ -1004,7 +1063,7 @@ VkPipelineColorBlendStateCreateInfo defineBlendState_LogicOp(VkPipelineColorBlen
 
 /* Define a simple uniform layout using uniform buffers (no push constants).
 */
-VkPipelineLayoutCreateInfo defineUniformLayout(VkDescriptorSetLayout *descriptorSet, uint32_t num_descriptors)
+VkPipelineLayout createPipelineLayout(VkDevice device, VkDescriptorSetLayout *descriptorSet, uint32_t num_descriptors)
 {
 	VkPipelineLayoutCreateInfo layout = {};
 	layout.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -1014,7 +1073,12 @@ VkPipelineLayoutCreateInfo defineUniformLayout(VkDescriptorSetLayout *descriptor
 	layout.pSetLayouts = descriptorSet;
 	layout.pushConstantRangeCount = 0;
 	layout.pPushConstantRanges = nullptr;
-	return layout;
+
+	VkPipelineLayout pipelineLayout;
+	VkResult result = vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr, &pipelineLayout);
+	if (result != VK_SUCCESS)
+		throw std::runtime_error("Failed to create pipeline layout.");
+	return pipelineLayout;
 }
 
 /* Define a shader used for a shader stage.

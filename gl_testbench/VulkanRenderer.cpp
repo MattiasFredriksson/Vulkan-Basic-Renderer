@@ -27,8 +27,7 @@ VulkanRenderer::~VulkanRenderer() { }
 
 Material* VulkanRenderer::makeMaterial(const std::string& name)
 {
-	MaterialVulkan* m = new MaterialVulkan(name);
-	m->setRenderer(this);
+	MaterialVulkan* m = new MaterialVulkan(name, this);
 	return (Material*)m;
 }
 Mesh* VulkanRenderer::makeMesh()
@@ -375,8 +374,7 @@ void VulkanRenderer::frame()
 	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 	allocInfo.commandBufferCount = 1;
 
-	VkCommandBuffer cmdBuf;
-	if (vkAllocateCommandBuffers(device, &allocInfo, &cmdBuf) != VK_SUCCESS) {
+	if (vkAllocateCommandBuffers(device, &allocInfo, &_frameCmdBuf) != VK_SUCCESS) {
 		throw std::runtime_error("failed to allocate command buffers!");
 	}
 
@@ -384,7 +382,7 @@ void VulkanRenderer::frame()
 	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT;
 	beginInfo.pInheritanceInfo = nullptr; // Optional
-	vkBeginCommandBuffer(cmdBuf, &beginInfo);
+	vkBeginCommandBuffer(_frameCmdBuf, &beginInfo);
 
 	//Render pass
 	VkRenderPassBeginInfo renderPassInfo = {};
@@ -397,12 +395,15 @@ void VulkanRenderer::frame()
 	renderPassInfo.clearValueCount = 1;
 	renderPassInfo.pClearValues = &clearColor;
 
-	vkCmdBeginRenderPass(cmdBuf, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+	vkCmdBeginRenderPass(_frameCmdBuf, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
 	// Draw stuff..?:)
+	
+	vkCmdBindPipeline(_frameCmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+	vkCmdDraw(_frameCmdBuf, 3, 1, 0, 0);
 
-	vkCmdEndRenderPass(cmdBuf);
-	if (vkEndCommandBuffer(cmdBuf) != VK_SUCCESS) {
+	vkCmdEndRenderPass(_frameCmdBuf);
+	if (vkEndCommandBuffer(_frameCmdBuf) != VK_SUCCESS) {
 		throw std::runtime_error("failed to record command buffer!");
 	}
 
@@ -418,7 +419,7 @@ void VulkanRenderer::frame()
 	submitInfo.pWaitSemaphores = waitSemaphores;
 	submitInfo.pWaitDstStageMask = waitStages;
 	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &cmdBuf;
+	submitInfo.pCommandBuffers = &_frameCmdBuf;
 	submitInfo.signalSemaphoreCount = 1;
 	submitInfo.pSignalSemaphores = signalSemaphores;
 	if (vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
@@ -437,6 +438,12 @@ void VulkanRenderer::frame()
 	presentInfo.pImageIndices = &imageIndex;
 	presentInfo.pResults = nullptr; // Optional
 	vkQueuePresentKHR(queue, &presentInfo);
+}
+
+
+VkCommandBuffer VulkanRenderer::getFrameCmdBuf()
+{
+	return _frameCmdBuf;
 }
 
 VkDevice VulkanRenderer::getDevice()

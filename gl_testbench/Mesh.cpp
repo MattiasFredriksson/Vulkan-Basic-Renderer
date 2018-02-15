@@ -36,6 +36,12 @@ void Mesh::addTexture(Texture2D* texture, unsigned int slot)
 	textures[slot] = texture;
 }
 
+
+void Mesh::setTechnique(Technique *technique)
+{
+	this->technique = technique;
+}
+
 Mesh::~Mesh()
 {
 	for (auto g : geometryBuffers) {

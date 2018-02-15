@@ -22,7 +22,7 @@ void RenderStateVulkan::set()
 	else
 		*globalWireframe = wireframe;
 
-	// This should recreate the pipeline. todo?
+	// Set dynamic render states...
 }
 
 void RenderStateVulkan::setGlobalWireFrame(bool * global)
@@ -32,5 +32,12 @@ void RenderStateVulkan::setGlobalWireFrame(bool * global)
 
 bool RenderStateVulkan::getWireframe()
 {
-	return wireframe;
+	return wireframe || *globalWireframe;
+}
+
+
+VkPipelineDynamicStateCreateInfo* RenderStateVulkan::getDynamicState()
+{
+	//Todo: make dynamic settings...
+	return nullptr;
 }

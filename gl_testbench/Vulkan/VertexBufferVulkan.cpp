@@ -25,6 +25,8 @@ void VertexBufferVulkan::setData(const void * data, size_t size, size_t offset)
 
 void VertexBufferVulkan::bind(size_t offset, size_t size, unsigned int location)
 {
+	VkDeviceSize offsets[] = { offset };
+	vkCmdBindVertexBuffers(_renderHandle->getFrameCmdBuf(), location, 1, &_bufferHandle, offsets);
 }
 
 void VertexBufferVulkan::unbind()

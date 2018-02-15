@@ -2,6 +2,7 @@
 #include <unordered_map>
 #include <gl\glew.h>
 #include "../Mesh.h"
+#include <vulkan/vulkan.h>
 
 class MeshVulkan :
 	public Mesh
@@ -9,4 +10,7 @@ class MeshVulkan :
 public:
 	MeshVulkan();
 	~MeshVulkan();
+
+
+	virtual void setTechnique(Technique *technique);
 };

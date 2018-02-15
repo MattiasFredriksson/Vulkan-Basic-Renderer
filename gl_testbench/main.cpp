@@ -255,7 +255,7 @@ int initialiseTestbench()
 		// we can create a constant buffer outside the material, for example as part of the Mesh.
 		m->txBuffer = renderer->makeConstantBuffer(std::string(TRANSLATION_NAME), TRANSLATION);
 		
-		m->technique = techniques[ i % 4];
+		m->setTechnique(techniques[ i % 4]);
 		if (i % 4 == 2)
 			m->addTexture(textures[0], DIFFUSE_SLOT);
 

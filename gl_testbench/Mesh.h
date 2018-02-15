@@ -39,4 +39,7 @@ public:
 	void bindIAVertexBuffer(unsigned int location);
 	std::unordered_map<unsigned int, VertexBufferBind> geometryBuffers;
 	std::unordered_map<unsigned int, Texture2D*> textures;
+
+
+	virtual void setTechnique(Technique *technique);
 };
