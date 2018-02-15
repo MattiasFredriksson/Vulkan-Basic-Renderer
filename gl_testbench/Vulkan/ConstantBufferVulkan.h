@@ -14,6 +14,8 @@ public:
 	void init(VulkanRenderer* renderer);
 
 	VkDescriptorBufferInfo* getDescriptorBufferInfo();
+	/* A descriptor may be associated with the buffer...*/
+	VkDescriptorSet descriptor;
 
 private:
 	VulkanRenderer* renderer;

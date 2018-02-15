@@ -31,8 +31,8 @@ void MaterialVulkan::destroyShaderObjects()
 		vkDestroyShaderModule(_renderHandle->getDevice(), vertexShader, nullptr);
 		vkDestroyShaderModule(_renderHandle->getDevice(), fragmentShader, nullptr);
 		vkDestroyPipelineLayout(_renderHandle->getDevice(), pipelineLayout, nullptr);
-		vkDestroyDescriptorSetLayout(_renderHandle->getDevice(), vertexDataSetLayout, nullptr);
-		vkDestroyDescriptorPool(_renderHandle->getDevice(), descriptorPool, nullptr);
+		vkDestroyDescriptorSetLayout(_renderHandle->getDevice(), matDescriptorLayout, nullptr);
+		vkDestroyDescriptorPool(_renderHandle->getDevice(), matPool, nullptr);
 		spawned = false;
 	}
 }
@@ -57,7 +57,7 @@ int MaterialVulkan::compileMaterial(std::string & errString)
 	//Clear first
 	destroyShaderObjects();
 	int success = createShaders();
-	createDescriptorSetLayout();
+	createDescriptorParams_Material();
 	generatePipelineLayout();
 	spawned = true;
 	return success;
@@ -120,65 +120,84 @@ std::vector<std::pair<unsigned, VkDescriptorBufferInfo*>> MaterialVulkan::getBuf
 void MaterialVulkan::generatePipelineLayout()
 {
 	// Uniform layout description
-	pipelineLayout = createPipelineLayout(_renderHandle->getDevice(), &vertexDataSetLayout, 1);
+	pipelineLayout = createPipelineLayout(_renderHandle->getDevice(), &matDescriptorLayout, 1);
 }
 
 #pragma region Descriptor set & layout
 
-void MaterialVulkan::createDescriptorSetLayout()
+
+VkDescriptorSet MaterialVulkan::allocMeshDescriptor()
+{
+	return createDescriptorSet(_renderHandle->getDevice(), meshPool, &meshDescriptorLayout, 1);
+}
+
+VkDescriptorPool createDescriptorPool(VkDevice device, uint32_t uniBuffers, uint32_t imageBuffers, uint32_t poolSize)
+{
+	// Describes how many of every descriptor type can be created in the pool
+	VkDescriptorPoolSize descriptorSizes[MAX_DESCRIPTOR_TYPES];
+	uint32_t i = 0;
+	if (uniBuffers > 0)
+	{
+		descriptorSizes[i].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		descriptorSizes[i].descriptorCount = uniBuffers;
+		i++;
+	}
+	if (imageBuffers > 0)
+	{
+		descriptorSizes[i].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		descriptorSizes[i].descriptorCount = imageBuffers;
+		i++;
+	}
+	// Create pool
+	return createDescriptorPool(device, descriptorSizes, i, poolSize);
+}
+
+void MaterialVulkan::createDescriptorParams_Mesh()
 {
 	// This is all hardcoded, not very good
 	std::vector<VkDescriptorSetLayoutBinding> layoutBindings;
+	uint32_t uniBuf = 0;
 
 	if (hasDefine(Material::ShaderType::VS, "#define TRANSLATION "))
 	{
-		uniformBufferCount++;
+		uniBuf++;
 		layoutBindings.push_back(VkDescriptorSetLayoutBinding{});
 		writeLayoutBinding(layoutBindings.back(), TRANSLATION, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT);
 	}
 
-	VkShaderStageFlags stage = (hasDefine(Material::ShaderType::VS, "#define DIFFUSE_TINT ") ? VK_SHADER_STAGE_FRAGMENT_BIT : 0;
+	// Create mesh descriptor layout
+	meshDescriptorLayout = createDescriptorLayout(_renderHandle->getDevice(), layoutBindings.data(), layoutBindings.size());
+	meshPool = createDescriptorPool(_renderHandle->getDevice(), uniBuf, 0, 40);
+}
+
+void MaterialVulkan::createDescriptorParams_Material()
+{
+	// This is all hardcoded, not very good
+	std::vector<VkDescriptorSetLayoutBinding> layoutBindings;
+
+	uint32_t uniBuf = 0, imgSamp = 0;
+
+	VkShaderStageFlags stage = hasDefine(Material::ShaderType::VS, "#define DIFFUSE_TINT ") ? VK_SHADER_STAGE_FRAGMENT_BIT : 0;
 	stage |= hasDefine(Material::ShaderType::PS, "#define DIFFUSE_TINT ") ? VK_SHADER_STAGE_FRAGMENT_BIT : 0;
 	if (stage)
 	{
-		uniformBufferCount++;
+		uniBuf++;
 		layoutBindings.push_back(VkDescriptorSetLayoutBinding{});
 		writeLayoutBinding(layoutBindings.back(), DIFFUSE_TINT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, stage);
 	}
 
 	if (hasDefine(Material::ShaderType::PS, "#define DIFFUSE_SLOT "))
 	{
-		combinedImageSamplerCount++;
+		imgSamp++;
 		layoutBindings.push_back(VkDescriptorSetLayoutBinding{});
 		writeLayoutBinding(layoutBindings.back(), DIFFUSE_SLOT, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT);
 	}
-	// Create layout
-	vertexDataSetLayout = createDescriptorLayout(_renderHandle->getDevice(), layoutBindings.data(), layoutBindings.size());
-}
+	// Create material descriptor layout
+	matDescriptorLayout = createDescriptorLayout(_renderHandle->getDevice(), layoutBindings.data(), layoutBindings.size());
 
-void MaterialVulkan::createDescriptorParams()
-{
-	// Describes how many of every descriptor type can be created in the pool
-	VkDescriptorPoolSize descriptorSizes[MAX_DESCRIPTOR_TYPES];
-
-	int i = 0;
-
-	if (uniformBufferCount > 0)
-	{
-		descriptorSizes[i].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		descriptorSizes[i].descriptorCount = uniformBufferCount;
-		i++;
-	}
-	if (combinedImageSamplerCount > 0)
-	{
-		descriptorSizes[i].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		descriptorSizes[i].descriptorCount = combinedImageSamplerCount;
-		i++;
-	}
-	// Create pool
-	descriptorPool = createDescriptorPool(_renderHandle->getDevice(), descriptorSizes, i, 1);
 	// Create set
-	descriptorSet = createDescriptorSet(_renderHandle->getDevice(), descriptorPool, &vertexDataSetLayout, 1);
+	matPool = createDescriptorPool(_renderHandle->getDevice(), uniBuf, imgSamp, 1);
+	matDescriptor = createDescriptorSet(_renderHandle->getDevice(), matPool, &matDescriptorLayout, 1);
 }
 
 #pragma endregion

@@ -884,7 +884,7 @@ VkDescriptorSetLayout createDescriptorLayout(VkDevice device, VkDescriptorSetLay
 
 /* Create a descriptor pool from the params.
 device	<< 
-sizeTypes	<<	Array of descriptors defining the descriptors allocated in the pool.
+sizeTypes	<<	Array of descriptors defining the descriptors size that is allocated from the pool.
 num_types	<<	Length of the 'sizeTypes' array
 poolSize	<<	Max number of descriptors sets allocated from the pool.
 */

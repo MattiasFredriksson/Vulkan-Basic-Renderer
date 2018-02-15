@@ -69,8 +69,8 @@ public:
 	VkShaderModule vertexShader;
 	VkShaderModule fragmentShader;
 	VkPipelineLayout pipelineLayout;
-	uint32_t uniformBufferCount = 0;
-	uint32_t combinedImageSamplerCount = 0;
+
+	VkDescriptorSet allocMeshDescriptor();
 
 private:
 	std::string name;
@@ -78,12 +78,14 @@ private:
 	std::map<unsigned int, ConstantBuffer*> constantBuffers;
 	bool spawned;
 
-	VkDescriptorSet descriptorSet;
-	VkDescriptorPool descriptorPool;
-	VkDescriptorSetLayout vertexDataSetLayout;
+	VkDescriptorSet matDescriptor;
+	VkDescriptorPool matPool, meshPool;
+	VkDescriptorSetLayout matDescriptorLayout;	// Layout for the descriptor set defined for each material
+	VkDescriptorSetLayout meshDescriptorLayout;	// Layout for the descriptor set defined for each mesh
 
 
-	void createDescriptorSetLayout();
+	void createDescriptorParams_Material();
+	void createDescriptorParams_Mesh();
 	void generatePipelineLayout();
 
 	int createShaders();
@@ -93,8 +95,6 @@ private:
 	std::string runCompiler(Material::ShaderType type, std::string inputFileName);
 	std::vector<char> loadSPIR_V(std::string fileName);
 
-	void createDescriptorSetLayout();
-	void createDescriptorParams();
 };
 
 #pragma once
