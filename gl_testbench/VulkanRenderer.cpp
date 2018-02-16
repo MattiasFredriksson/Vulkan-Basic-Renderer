@@ -305,9 +305,9 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 	renderFinishedSemaphore = createSemaphore(device);
 
 	descriptorPools[VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER]
-		= createDescriptorPool(device, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 20000);
+		= createDescriptorPoolSingle(device, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 20000);
 	descriptorPools[VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER]
-		= createDescriptorPool(device, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 20000);
+		= createDescriptorPoolSingle(device, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 20000);
 
 	return 0;
 }
@@ -491,7 +491,7 @@ VkPhysicalDevice VulkanRenderer::getPhysical()
 
 void padAlignment(size_t &allocOffset, VkMemoryRequirements &memReq)
 {
-	if (allocOffset % memReq.alignment != 0)
+	if ((allocOffset % memReq.alignment) != 0)
 		allocOffset += memReq.alignment - (allocOffset % memReq.alignment);
 }
 size_t VulkanRenderer::bindPhysicalMemory(VkBuffer buffer, MemoryPool pool)
