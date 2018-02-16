@@ -69,22 +69,14 @@ public:
 
 	VkShaderModule vertexShader;
 	VkShaderModule fragmentShader;
-	VkPipelineLayout pipelineLayout;
-
-	VkDescriptorSetLayout& getLayoutBinding(uint32_t binding);
-
+	
 private:
 	std::string name;
 	VulkanRenderer* _renderHandle;	// Pointer to the renderer that created this material
 	std::map<unsigned int, ConstantBuffer*> constantBuffers;
 	bool spawned;
 	
-
-	VkDescriptorSetLayout descriptorLayouts[MAX_MATERIAL_DESCRIPTORS];
-
-	void defineDescriptorLayout();
-	void generatePipelineLayout();
-
+		
 	int createShaders();
 	void destroyShaderObjects();
 	std::string assembleShader(Material::ShaderType type);

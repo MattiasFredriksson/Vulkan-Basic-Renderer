@@ -3,3 +3,5 @@ Issues:
 Todo:
 
 Add a transfer queue + sync primitives.
+Fix pipeline layout
+Fix render order (depth)

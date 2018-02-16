@@ -73,7 +73,7 @@ public:
 	size_t bindPhysicalMemory(VkBuffer buffer, MemoryPool memPool);
 	size_t bindPhysicalMemory(VkImage img, MemoryPool pool);
 
-	VkDescriptorSet generateDescriptor(VkDescriptorType type, VkDescriptorSetLayout &layout);
+	VkDescriptorSet generateDescriptor(VkDescriptorType type, uint32_t set_binding);
 
 	/* Transfer data to the specific buffer. */
 	void transferBufferData(VkBuffer buffer, const void* data, size_t size, size_t offset);
@@ -82,6 +82,7 @@ public:
 
 	VkSurfaceFormatKHR getSwapchainFormat();
 	VkCommandBuffer getFrameCmdBuf();
+	VkPipelineLayout getPipelineLayout();
 
 
 	unsigned int getWidth();
@@ -105,7 +106,17 @@ private:
 	std::vector<VkImageView> swapchainImageViews;		// Image views for the swap chain images
 	std::vector<VkFramebuffer> swapChainFramebuffers;	// Combined sets of images that make up each frame buffer.
 	glm::vec4 clearColor;
+
+	/* Render pass & Pipelines
+	Dependent constructs. 
+	Render pass determines attached framebuffers ...
+	Pipelines depend on a render pass and when set determine renderstate, shaders, culling...
+	Pipeline layouts however can be shared between any combination of setups aslong there are no conflicts in the bindings
+	(they can include redundant binding slots..)
+	*/
 	VkRenderPass colorPass;
+	VkPipelineLayout pipelineLayout;
+	std::vector<VkDescriptorSetLayout> descriptorLayouts;
 
 	VkSemaphore imageAvailableSemaphore;
 	VkSemaphore renderFinishedSemaphore;
@@ -133,4 +144,8 @@ private:
 	void updateStagingBuffer(const void* data, size_t size);								// Writes memory from data into the staging buffer
 	void allocateBufferMemory(MemoryPool type, size_t size, VkFlags usage);					// Allocates memory pool buffer data
 	void allocateImageMemory(MemoryPool type, size_t size, VkFormat imgFormat);				// Allocates memory pool image data
+
+
+	void defineDescriptorLayout();
+	void generatePipelineLayout();
 };

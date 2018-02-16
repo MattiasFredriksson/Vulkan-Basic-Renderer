@@ -96,7 +96,7 @@ void TechniqueVulkan::createPipeline()
 	pipelineCreateInfo.pDepthStencilState = nullptr;
 	pipelineCreateInfo.pColorBlendState = &pipelineColorBlendStateCreateInfo;
 	pipelineCreateInfo.pDynamicState = rState->getDynamicState();
-	pipelineCreateInfo.layout = mat->pipelineLayout;
+	pipelineCreateInfo.layout = _renderHandle->getPipelineLayout();
 	pipelineCreateInfo.renderPass = _passHandle;
 	pipelineCreateInfo.subpass = 0;
 	pipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;

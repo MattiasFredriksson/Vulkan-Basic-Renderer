@@ -25,6 +25,8 @@ VulkanRenderer::VulkanRenderer()
 }
 VulkanRenderer::~VulkanRenderer() { }
 
+#pragma region Make funcs
+
 Material* VulkanRenderer::makeMaterial(const std::string& name)
 {
 	MaterialVulkan* m = new MaterialVulkan(name, this);
@@ -53,14 +55,6 @@ RenderState* VulkanRenderer::makeRenderState()
 	newRS->setWireFrame(false);
 	return (RenderState*)newRS;
 }
-std::string VulkanRenderer::getShaderPath()
-{
-	return "..\\assets\\Vulkan\\";
-}
-std::string VulkanRenderer::getShaderExtension()
-{
-	return ".glsl";
-}
 ConstantBuffer* VulkanRenderer::makeConstantBuffer(std::string NAME, unsigned int location)
 {
 	ConstantBufferVulkan* cb = new ConstantBufferVulkan(NAME, location);
@@ -72,6 +66,9 @@ Technique* VulkanRenderer::makeTechnique(Material* m, RenderState* r)
 	return (Technique*) new TechniqueVulkan(m, r, this, colorPass);
 }
 
+#pragma endregion
+
+#pragma region Init & Destroy
 
 int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 {
@@ -304,6 +301,9 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 	imageAvailableSemaphore = createSemaphore(device);
 	renderFinishedSemaphore = createSemaphore(device);
 
+	defineDescriptorLayout();
+	generatePipelineLayout();
+	
 	for (uint32_t i = 0; i < MAX_DESCRIPTOR_POOLS; i++)
 		descriptorPools[i] = NULL;
 	descriptorPools[VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER]
@@ -312,15 +312,6 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 		= createDescriptorPoolSingle(device, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2000);
 
 	return 0;
-}
-
-void VulkanRenderer::setWinTitle(const char* title)
-{
-	SDL_SetWindowTitle(window, title);
-}
-void VulkanRenderer::present()
-{
-
 }
 int VulkanRenderer::shutdown()
 {
@@ -333,6 +324,10 @@ int VulkanRenderer::shutdown()
 		if(descriptorPools[i])
 			vkDestroyDescriptorPool(device, descriptorPools[i], nullptr);
 	}
+	vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+	for (size_t i = 0; i < descriptorLayouts.size(); i++)
+			vkDestroyDescriptorSetLayout(device, descriptorLayouts[i], nullptr);
+
 	vkDestroyCommandPool(device, drawingCommandPool, nullptr);
 	vkDestroyCommandPool(device, stagingCommandPool, nullptr);
 	vkDestroyBuffer(device, stagingBuffer, nullptr);
@@ -359,22 +354,20 @@ int VulkanRenderer::shutdown()
 	return 0;	// temp
 }
 
-void VulkanRenderer::setClearColor(float r, float g, float b, float a)
+#pragma endregion
+
+void VulkanRenderer::present()
 {
-	clearColor = glm::vec4{ r, g, b, a };
+
 }
+
 void VulkanRenderer::clearBuffer(unsigned int flag)
 {
 
 }
-void VulkanRenderer::setRenderState(RenderState* ps)
-{
 
-}
-void VulkanRenderer::submit(Mesh* mesh)
-{
-	drawLists[mesh->technique].push_back(mesh);
-}
+#pragma region Frame
+
 void VulkanRenderer::frame()
 {
 	uint32_t imageIndex;
@@ -477,21 +470,39 @@ void VulkanRenderer::frame()
 	vkResetCommandPool(device, drawingCommandPool, VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT);
 }
 
-
-VkCommandBuffer VulkanRenderer::getFrameCmdBuf()
+void VulkanRenderer::setRenderState(RenderState* ps)
 {
-	return _frameCmdBuf;
+	// Render pipeline (state) is set from Technique
+}
+void VulkanRenderer::submit(Mesh* mesh)
+{
+	drawLists[mesh->technique].push_back(mesh);
 }
 
-VkDevice VulkanRenderer::getDevice()
+#pragma endregion
+
+
+void VulkanRenderer::generatePipelineLayout()
 {
-	return device;
+	pipelineLayout = createPipelineLayout(device, descriptorLayouts.data(), (uint32_t)descriptorLayouts.size());
 }
 
-VkPhysicalDevice VulkanRenderer::getPhysical()
+void VulkanRenderer::defineDescriptorLayout()
 {
-	return physicalDevice;
+	descriptorLayouts.resize(3);
+	VkDescriptorSetLayoutBinding binding;
+	writeLayoutBinding(binding, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT);
+	descriptorLayouts[TRANSLATION] = createDescriptorLayout(device, &binding, 1);
+
+	writeLayoutBinding(binding, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT);
+	descriptorLayouts[DIFFUSE_TINT] = createDescriptorLayout(device, &binding, 1);
+	
+	writeLayoutBinding(binding, 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT);
+	descriptorLayouts[DIFFUSE_SLOT] = createDescriptorLayout(device, &binding, 1);
+	
 }
+
+#pragma region Memory
 
 
 void padAlignment(size_t &allocOffset, VkMemoryRequirements &memReq)
@@ -534,9 +545,9 @@ size_t VulkanRenderer::bindPhysicalMemory(VkImage img, MemoryPool pool)
 	return freeOffset;
 }
 
-VkDescriptorSet VulkanRenderer::generateDescriptor(VkDescriptorType type, VkDescriptorSetLayout &layout)
+VkDescriptorSet VulkanRenderer::generateDescriptor(VkDescriptorType type, uint32_t set_binding)
 {
-	return createDescriptorSet(device, descriptorPools[type], &layout);
+	return createDescriptorSet(device, descriptorPools[type], &descriptorLayouts[set_binding]);
 }
 
 
@@ -644,21 +655,6 @@ void VulkanRenderer::transitionImageFormat(VkImage image, VkFormat format, VkIma
 	endSingleCommand_Wait(device, queue, stagingCommandPool, cmdBuffer);
 }
 
-VkSurfaceFormatKHR VulkanRenderer::getSwapchainFormat()
-{
-	return swapchainFormat;
-}
-
-unsigned int VulkanRenderer::getWidth()
-{
-	return swapchainExtent.width;
-}
-
-unsigned int VulkanRenderer::getHeight()
-{
-	return swapchainExtent.height;
-}
-
 void VulkanRenderer::updateStagingBuffer(const void* data, size_t size)
 {
 	if (size > STORAGE_SIZE[MemoryPool::STAGING_BUFFER])
@@ -696,3 +692,58 @@ void VulkanRenderer::allocateImageMemory(MemoryPool type, size_t size, VkFormat 
 	vkDestroyImage(device, dummy, nullptr);
 
 }
+
+#pragma endregion
+
+#pragma region Get & Set Stuff
+
+VkPipelineLayout VulkanRenderer::getPipelineLayout()
+{
+	return pipelineLayout;
+}
+VkCommandBuffer VulkanRenderer::getFrameCmdBuf()
+{
+	return _frameCmdBuf;
+}
+
+VkDevice VulkanRenderer::getDevice()
+{
+	return device;
+}
+
+VkPhysicalDevice VulkanRenderer::getPhysical()
+{
+	return physicalDevice;
+}
+VkSurfaceFormatKHR VulkanRenderer::getSwapchainFormat()
+{
+	return swapchainFormat;
+}
+
+unsigned int VulkanRenderer::getWidth()
+{
+	return swapchainExtent.width;
+}
+
+unsigned int VulkanRenderer::getHeight()
+{
+	return swapchainExtent.height;
+}
+
+void VulkanRenderer::setWinTitle(const char* title)
+{
+	SDL_SetWindowTitle(window, title);
+}
+void VulkanRenderer::setClearColor(float r, float g, float b, float a)
+{
+	clearColor = glm::vec4{ r, g, b, a };
+}
+std::string VulkanRenderer::getShaderPath()
+{
+	return "..\\assets\\Vulkan\\";
+}
+std::string VulkanRenderer::getShaderExtension()
+{
+	return ".glsl";
+}
+#pragma endregion

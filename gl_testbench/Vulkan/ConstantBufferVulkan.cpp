@@ -27,7 +27,7 @@ void ConstantBufferVulkan::setData(const void * data, size_t size, Material * m,
 		descriptorBufferInfo.range = VK_WHOLE_SIZE;
 
 		// Get & set the descriptor associated with the buffer
-		descriptor = _renderHandle->generateDescriptor(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, ((MaterialVulkan*)m)->getLayoutBinding(location));
+		descriptor = _renderHandle->generateDescriptor(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, location);
 		VkWriteDescriptorSet writes[1];
 		writeDescriptorStruct_UNI_BUFFER(writes[0], descriptor, 0, 0, 1, &descriptorBufferInfo);
 		vkUpdateDescriptorSets(_renderHandle->getDevice(), 1, writes, 0, nullptr);
@@ -39,8 +39,7 @@ void ConstantBufferVulkan::setData(const void * data, size_t size, Material * m,
 
 void ConstantBufferVulkan::bind(Material *m)
 {
-	assert(dynamic_cast<MaterialVulkan*>(m));
-	vkCmdBindDescriptorSets(_renderHandle->getFrameCmdBuf(), VK_PIPELINE_BIND_POINT_GRAPHICS, ((MaterialVulkan*)m)->pipelineLayout, location, 1, &descriptor, 0, nullptr);
+	vkCmdBindDescriptorSets(_renderHandle->getFrameCmdBuf(), VK_PIPELINE_BIND_POINT_GRAPHICS, _renderHandle->getPipelineLayout(), location, 1, &descriptor, 0, nullptr);
 }
 
 void ConstantBufferVulkan::init(VulkanRenderer* renderer)

@@ -82,7 +82,7 @@ void Texture2DVulkan::bind(unsigned int slot, Material *m)
 			throw std::runtime_error("No suitable sampler, create a default sampler...");
 		if (!descriptor)
 			// Descriptor
-			descriptor = _renderHandle->generateDescriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, ((MaterialVulkan*)m)->getLayoutBinding(slot));
+			descriptor = _renderHandle->generateDescriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, slot);
 
 		/* This code is broken, can't update descriptor when bound. Works as the texture is only bound to one slot/layout.
 		*/
@@ -92,5 +92,5 @@ void Texture2DVulkan::bind(unsigned int slot, Material *m)
 		vkUpdateDescriptorSets(_renderHandle->getDevice(), 1, writes, 0, nullptr);
 	}
 
-	vkCmdBindDescriptorSets(_renderHandle->getFrameCmdBuf(), VK_PIPELINE_BIND_POINT_GRAPHICS, ((MaterialVulkan*)m)->pipelineLayout, slot, 1, &descriptor, 0, nullptr);
+	vkCmdBindDescriptorSets(_renderHandle->getFrameCmdBuf(), VK_PIPELINE_BIND_POINT_GRAPHICS, _renderHandle->getPipelineLayout(), slot, 1, &descriptor, 0, nullptr);
 }

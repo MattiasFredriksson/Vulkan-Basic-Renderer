@@ -12,8 +12,6 @@
 MaterialVulkan::MaterialVulkan(const std::string & name, VulkanRenderer *renderHandle)
 	: name(name), _renderHandle(renderHandle)
 {
-	for (uint32_t i = 0; i < MAX_MATERIAL_DESCRIPTORS; i++)
-		descriptorLayouts[i] = nullptr;
 	spawned = false;
 }
 
@@ -33,12 +31,6 @@ void MaterialVulkan::destroyShaderObjects()
 	{
 		vkDestroyShaderModule(_renderHandle->getDevice(), vertexShader, nullptr);
 		vkDestroyShaderModule(_renderHandle->getDevice(), fragmentShader, nullptr);
-		vkDestroyPipelineLayout(_renderHandle->getDevice(), pipelineLayout, nullptr);
-		for (uint32_t i = 0; i < MAX_MATERIAL_DESCRIPTORS; i++)
-		{
-			if(descriptorLayouts[i])
-				vkDestroyDescriptorSetLayout(_renderHandle->getDevice(), descriptorLayouts[i], nullptr);
-		}
 		spawned = false;
 	}
 }
@@ -63,8 +55,6 @@ int MaterialVulkan::compileMaterial(std::string & errString)
 	//Clear first
 	destroyShaderObjects();
 	int success = createShaders();
-	defineDescriptorLayout();
-	generatePipelineLayout();
 	spawned = true;
 	return success;
 }
@@ -119,53 +109,7 @@ std::vector<std::pair<unsigned, VkDescriptorBufferInfo*>> MaterialVulkan::getBuf
 	return bufferInfos;
 }
 
-void MaterialVulkan::generatePipelineLayout()
-{
-	// Uniform layout description
-	uint32_t num_layouts = descriptorLayouts[DIFFUSE_SLOT] ? 3 : 2;
-	pipelineLayout = createPipelineLayout(_renderHandle->getDevice(), &descriptorLayouts[TRANSLATION], num_layouts);
-}
-
-#pragma region Descriptor set & layout
-
-
-VkDescriptorSetLayout& MaterialVulkan::getLayoutBinding(uint32_t binding)
-{
-	return descriptorLayouts[binding];
-}
-
-void MaterialVulkan::defineDescriptorLayout()
-{
-
-	if (hasDefine(Material::ShaderType::VS, "#define TRANSLATION "))
-	{
-		int location = TRANSLATION;
-		VkDescriptorSetLayoutBinding binding;
-		writeLayoutBinding(binding, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT);
-		descriptorLayouts[location] = createDescriptorLayout(_renderHandle->getDevice(), &binding, 1);
-	}
-	VkShaderStageFlags stage = hasDefine(Material::ShaderType::VS, "#define DIFFUSE_TINT ") ? VK_SHADER_STAGE_FRAGMENT_BIT : 0;
-	stage |= hasDefine(Material::ShaderType::PS, "#define DIFFUSE_TINT ") ? VK_SHADER_STAGE_FRAGMENT_BIT : 0;
-	if (stage)
-	{
-		int location = DIFFUSE_TINT;
-		VkDescriptorSetLayoutBinding binding;
-		writeLayoutBinding(binding, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, stage);
-		descriptorLayouts[location] = createDescriptorLayout(_renderHandle->getDevice(), &binding, 1);
-	}
-	if (hasDefine(Material::ShaderType::PS, "#define DIFFUSE_SLOT "))
-	{
-		int location = DIFFUSE_SLOT;
-		VkDescriptorSetLayoutBinding binding;
-		writeLayoutBinding(binding, 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT);
-		descriptorLayouts[location] = createDescriptorLayout(_renderHandle->getDevice(), &binding, 1);
-	}
-}
-
-#pragma endregion
-
 #pragma region Shader creation
-
 
 
 int MaterialVulkan::createShaders()
