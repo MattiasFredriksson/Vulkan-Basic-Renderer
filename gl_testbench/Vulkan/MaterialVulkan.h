@@ -38,6 +38,7 @@ OUT=std::string(buff);\
 }
 
 const uint32_t MAX_DESCRIPTOR_TYPES = 2; //2 for this solution...
+const uint32_t MAX_MATERIAL_DESCRIPTORS = 8;
 
 class MaterialVulkan :
 	public Material
@@ -70,22 +71,18 @@ public:
 	VkShaderModule fragmentShader;
 	VkPipelineLayout pipelineLayout;
 
-	VkDescriptorSet allocMeshDescriptor();
+	VkDescriptorSetLayout& getLayoutBinding(uint32_t binding);
 
 private:
 	std::string name;
 	VulkanRenderer* _renderHandle;	// Pointer to the renderer that created this material
 	std::map<unsigned int, ConstantBuffer*> constantBuffers;
 	bool spawned;
+	
 
-	VkDescriptorSet matDescriptor;
-	VkDescriptorPool matPool, meshPool;
-	VkDescriptorSetLayout matDescriptorLayout;	// Layout for the descriptor set defined for each material
-	VkDescriptorSetLayout meshDescriptorLayout;	// Layout for the descriptor set defined for each mesh
+	VkDescriptorSetLayout descriptorLayouts[MAX_MATERIAL_DESCRIPTORS];
 
-
-	void createDescriptorParams_Material();
-	void createDescriptorParams_Mesh();
+	void defineDescriptorLayout();
 	void generatePipelineLayout();
 
 	int createShaders();

@@ -16,12 +16,12 @@ layout(location=POSITION) in vec4 position_in;
 //  	vec4 tx;
 // } transform;
 
-layout(binding=TRANSLATION) uniform TRANSLATION_NAME
+layout(set=TRANSLATION, binding=0) uniform TRANSLATION_NAME
 {
 	vec4 translate;
 };
 
-layout(binding=DIFFUSE_TINT) uniform DIFFUSE_TINT_NAME
+layout(set=DIFFUSE_TINT, binding=0) uniform DIFFUSE_TINT_NAME
 {
 	vec4 diffuseTint;
 };

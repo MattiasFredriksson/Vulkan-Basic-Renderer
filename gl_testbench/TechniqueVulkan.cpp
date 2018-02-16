@@ -18,6 +18,9 @@ TechniqueVulkan::~TechniqueVulkan()
 
 void TechniqueVulkan::enable(Renderer* renderer)
 {
+	/* The render pipeline (includes RenderState) is set from the Vulkan Renderer.
+	*/
+	material->enable();
 }
 
 void TechniqueVulkan::createPipeline()
@@ -60,7 +63,7 @@ void TechniqueVulkan::createPipeline()
 	if (rState->getWireframe())
 		rasterFlag |= WIREFRAME_BIT;
 	VkPipelineRasterizationStateCreateInfo pipelineRasterizationStateCreateInfo =
-		defineRasterizationState(rasterFlag, VK_CULL_MODE_BACK_BIT);
+		defineRasterizationState(rasterFlag, VK_CULL_MODE_NONE);
 
 	// Multisampling
 	VkPipelineMultisampleStateCreateInfo pipelineMultisampleStateCreateInfo =
@@ -90,7 +93,7 @@ void TechniqueVulkan::createPipeline()
 	pipelineCreateInfo.pDepthStencilState = nullptr;
 	pipelineCreateInfo.pColorBlendState = &pipelineColorBlendStateCreateInfo;
 	pipelineCreateInfo.pDynamicState = rState->getDynamicState();
-	pipelineCreateInfo.layout = pipelineLayout;
+	pipelineCreateInfo.layout = mat->pipelineLayout;
 	pipelineCreateInfo.renderPass = _passHandle;
 	pipelineCreateInfo.subpass = 0;
 	pipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;

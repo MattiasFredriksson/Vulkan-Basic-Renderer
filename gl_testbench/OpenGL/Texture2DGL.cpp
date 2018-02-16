@@ -57,7 +57,7 @@ int Texture2DGL::loadFromFile(std::string filename)
 	return 0;
 }
 
-void Texture2DGL::bind(unsigned int slot)
+void Texture2DGL::bind(unsigned int slot, Material *)
 {
 	glActiveTexture(GL_TEXTURE0 + slot);
 	glBindTexture(GL_TEXTURE_2D, textureHandle);

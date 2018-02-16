@@ -115,8 +115,9 @@ void writeLayoutBinding(VkDescriptorSetLayoutBinding &layoutBinding, uint32_t bi
 /* Create a VkDescriptorSetLayout from the bindings.
 */
 VkDescriptorSetLayout createDescriptorLayout(VkDevice device, VkDescriptorSetLayoutBinding *bindings, size_t num_binding);
+VkDescriptorPool createDescriptorPool(VkDevice device, VkDescriptorType type, uint32_t poolSize);
 VkDescriptorPool createDescriptorPool(VkDevice device, VkDescriptorPoolSize *sizeTypes, uint32_t num_types, uint32_t poolSize);
-VkDescriptorSet createDescriptorSet(VkDevice device, VkDescriptorPool pool, VkDescriptorSetLayout *layouts, uint32_t num_layout);
+VkDescriptorSet createDescriptorSet(VkDevice device, VkDescriptorPool pool, VkDescriptorSetLayout *layouts);
 #pragma endregion
 
 #pragma region Pipeline
@@ -144,7 +145,6 @@ typedef enum RasterizationFlagBits
 	NO_RASTERIZATION_BIT = 0x00000008	// Primitives are discarded before rasterization stage...
 } RasterizationFlagBits;
 VkPipelineRasterizationStateCreateInfo defineRasterizationState(uint32_t rasterFlags, VkCullModeFlags cullModeFlags, float lineWidth = 1.f);
-VkPipelineLayoutCreateInfo defineUniformLayout(VkDescriptorSetLayout *descriptorSet, uint32_t num_descriptors);
 
 VkPipelineShaderStageCreateInfo defineShaderStage(VkShaderStageFlagBits stage, VkShaderModule shader, const char* entryFunc = "main");
 
@@ -895,7 +895,7 @@ VkDescriptorPool createDescriptorPool(VkDevice device, VkDescriptorPoolSize *siz
 	descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	descriptorPoolCreateInfo.pNext = nullptr;
 	descriptorPoolCreateInfo.flags = 0;
-	descriptorPoolCreateInfo.maxSets = 1;
+	descriptorPoolCreateInfo.maxSets = poolSize;
 	descriptorPoolCreateInfo.poolSizeCount = num_types;
 	descriptorPoolCreateInfo.pPoolSizes = sizeTypes;
 
@@ -906,13 +906,25 @@ VkDescriptorPool createDescriptorPool(VkDevice device, VkDescriptorPoolSize *siz
 	return pool;
 }
 
-VkDescriptorSet createDescriptorSet(VkDevice device, VkDescriptorPool pool, VkDescriptorSetLayout *layouts, uint32_t num_layout)
+/* Create a descriptor pool for descriptor sets of single items.
+*/
+VkDescriptorPool createDescriptorPool(VkDevice device, VkDescriptorType type, uint32_t poolSize)
+{
+	// Describes how many of every descriptor type can be created in the pool
+	VkDescriptorPoolSize descriptorSizes;
+	descriptorSizes.type = type;
+	descriptorSizes.descriptorCount = 1;
+	// Create pool
+	return createDescriptorPool(device, &descriptorSizes, 1, poolSize);
+}
+
+VkDescriptorSet createDescriptorSet(VkDevice device, VkDescriptorPool pool, VkDescriptorSetLayout *layouts)
 {
 	VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {};
 	descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 	descriptorSetAllocateInfo.pNext = nullptr;
 	descriptorSetAllocateInfo.descriptorPool = pool;
-	descriptorSetAllocateInfo.descriptorSetCount = num_layout;
+	descriptorSetAllocateInfo.descriptorSetCount = 1;
 	descriptorSetAllocateInfo.pSetLayouts = layouts;
 
 	// Create a descriptor set for descriptorSet
@@ -1075,7 +1087,7 @@ VkPipelineLayout createPipelineLayout(VkDevice device, VkDescriptorSetLayout *de
 	layout.pPushConstantRanges = nullptr;
 
 	VkPipelineLayout pipelineLayout;
-	VkResult result = vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr, &pipelineLayout);
+	VkResult result = vkCreatePipelineLayout(device, &layout, nullptr, &pipelineLayout);
 	if (result != VK_SUCCESS)
 		throw std::runtime_error("Failed to create pipeline layout.");
 	return pipelineLayout;

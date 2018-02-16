@@ -2,9 +2,9 @@
 #define POSITION 0
 #define NORMAL 1
 #define TEXTCOORD 2
-#define TRANSLATION 5
+#define TRANSLATION 0
 #define TRANSLATION_NAME TranslationBlock
-#define DIFFUSE_TINT 6
+#define DIFFUSE_TINT 1
 #define DIFFUSE_TINT_NAME DiffuseColor
 // buffer inputs
 #ifdef NORMAL
@@ -24,12 +24,12 @@ layout(location=POSITION) in vec4 position_in;
 //  	vec4 tx;
 // } transform;
 
-layout(binding=TRANSLATION) uniform TRANSLATION_NAME
+layout(set=TRANSLATION, binding=0) uniform TRANSLATION_NAME
 {
 	vec4 translate;
 };
 
-layout(binding=DIFFUSE_TINT) uniform DIFFUSE_TINT_NAME
+layout(set=DIFFUSE_TINT, binding=0) uniform DIFFUSE_TINT_NAME
 {
 	vec4 diffuseTint;
 };

@@ -70,6 +70,9 @@ public:
 	/* Bind a physical memory partition on the device to the buffer from the specific memory pool. */
 	size_t bindPhysicalMemory(VkBuffer buffer, MemoryPool memPool);
 	size_t bindPhysicalMemory(VkImage img, MemoryPool pool);
+
+	VkDescriptorSet generateDescriptor(VkDescriptorType type, VkDescriptorSetLayout &layout);
+
 	/* Transfer data to the specific buffer. */
 	void transferBufferData(VkBuffer buffer, const void* data, size_t size, size_t offset);
 	void transferImageData(VkImage image, const void* data, glm::uvec3 img_size, uint32_t pixel_bytes, glm::ivec3 offset = glm::ivec3(0));
@@ -83,50 +86,49 @@ public:
 	unsigned int getHeight();
 
 private:
-	void createStagingBuffer();
-	void updateStagingBuffer(const void* data, size_t size);								// Writes memory from data into the staging buffer
-	void allocateBufferMemory(MemoryPool type, size_t size, VkFlags usage);					// Allocates memory pool buffer data
-	void allocateImageMemory(MemoryPool type, size_t size, VkFormat imgFormat);				// Allocates memory pool image data
 
 	VkInstance instance;
-
 	VkDevice device;
 	int chosenPhysicalDevice;
 	VkPhysicalDevice physicalDevice;
+	std::vector<DevMemoryAllocation> memPool;// Memory pool of device memory
 
 	bool globalWireframeMode = false;
 
 	SDL_Window* window;
-
 	VkSurfaceKHR windowSurface;
 	VkSwapchainKHR swapchain;
 
 	std::vector<VkImage> swapchainImages;				// Array of images in the swapchain, use vkAquireNextImageKHR(...) to aquire image for drawing to
 	std::vector<VkImageView> swapchainImageViews;		// Image views for the swap chain images
 	std::vector<VkFramebuffer> swapChainFramebuffers;	// Combined sets of images that make up each frame buffer.
+	glm::vec4 clearColor;
 	VkRenderPass colorPass;
 
 	VkSemaphore imageAvailableSemaphore;
 	VkSemaphore renderFinishedSemaphore;
 	VkCommandBuffer _frameCmdBuf;
 
-	glm::vec4 clearColor;
-
-	/* Memory pool of device memory
+	/*
 	*/
-	std::vector<DevMemoryAllocation> memPool;
+	VkDescriptorPool descriptorPools[12];
+
+	std::unordered_map<Technique*, std::vector<Mesh*>> drawLists;
 	
 
 	VkBuffer stagingBuffer;			// Buffer to temporarily hold data being transferred to GPU
 
-	int chosenQueueFamily;		// The queue family to be used
-
 	VkCommandPool stagingCommandPool;	// Allocates commands used when moving data to the GPU
 	VkCommandPool drawingCommandPool;	// Allocates commands used for drawing
 
+	int chosenQueueFamily;		// The queue family to be used
 	VkQueue queue;		// Handle to the queue used
 
 	VkSurfaceFormatKHR swapchainFormat;
-
 	VkExtent2D swapchainExtent;
+
+	void createStagingBuffer();
+	void updateStagingBuffer(const void* data, size_t size);								// Writes memory from data into the staging buffer
+	void allocateBufferMemory(MemoryPool type, size_t size, VkFlags usage);					// Allocates memory pool buffer data
+	void allocateImageMemory(MemoryPool type, size_t size, VkFormat imgFormat);				// Allocates memory pool image data
 };

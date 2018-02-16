@@ -18,14 +18,14 @@ public:
 	RenderState* getRenderState() { return renderState; };
 	virtual void enable(Renderer* renderer);
 
+	VkPipeline pipeline;
+
 private:
 	void createPipeline();
 
 	VulkanRenderer* _renderHandle;
 	VkRenderPass _passHandle;
 	
-	VkPipeline pipeline;
-	VkPipelineLayout pipelineLayout;
 	
 };
 

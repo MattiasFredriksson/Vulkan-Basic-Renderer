@@ -9,14 +9,14 @@
 
 layout(location = 0) out vec4 fragment_color;
 
-layout(binding=DIFFUSE_TINT) uniform DIFFUSE_TINT_NAME
+layout(set=DIFFUSE_TINT,binding=0) uniform DIFFUSE_TINT_NAME
 {
 	vec4 diffuseTint;
 };
 
 // binding sets the TEXTURE_UNIT value!
 #ifdef DIFFUSE_SLOT
-layout(binding=DIFFUSE_SLOT) uniform sampler2D myTex;
+layout(set=DIFFUSE_SLOT, binding=0) uniform sampler2D myTex;
 #endif
 
 void main () {

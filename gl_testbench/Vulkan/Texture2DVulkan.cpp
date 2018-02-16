@@ -2,9 +2,10 @@
 #include "stb_image.h"
 #include "../VulkanConstruct.h"
 #include "VulkanRenderer.h"
+#include "MaterialVulkan.h"
 
 Texture2DVulkan::Texture2DVulkan(VulkanRenderer *renderer)
-	: _renderHandle(renderer), _imageHandle(nullptr), imageInfo({NULL, NULL, VK_IMAGE_LAYOUT_UNDEFINED })
+	: _renderHandle(renderer), _imageHandle(nullptr), imageInfo({NULL, NULL, VK_IMAGE_LAYOUT_UNDEFINED }), descriptor(NULL)
 {
 }
 
@@ -66,10 +67,27 @@ int Texture2DVulkan::loadFromFile(std::string filename)
 	return 0;
 }
 
-void Texture2DVulkan::bind(unsigned int slot)
+void Texture2DVulkan::bind(unsigned int slot, Material *m)
 {
-	Sampler2DVulkan *vksamp = dynamic_cast<Sampler2DVulkan*>(sampler);
-	if (!vksamp)
-		throw std::runtime_error("No suitable sampler, create a default sampler...");
-	imageInfo.sampler = vksamp->_samplerHandle;
+
+	MaterialVulkan *vkm = dynamic_cast<MaterialVulkan*>(m);
+	assert(vkm);
+
+	if (slot != last_slot)
+	{
+		last_slot = slot;
+		//TODO set last slot to dummy on sampler change
+		Sampler2DVulkan *vksamp = dynamic_cast<Sampler2DVulkan*>(sampler);
+		if (!vksamp)
+			throw std::runtime_error("No suitable sampler, create a default sampler...");
+		if (!descriptor)
+			// Descriptor
+			descriptor = _renderHandle->generateDescriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, ((MaterialVulkan*)m)->getLayoutBinding(slot));
+		imageInfo.sampler = vksamp->_samplerHandle;
+		VkWriteDescriptorSet writes[1];
+		writeDescriptorStruct_IMG_COMBINED(writes[0], descriptor, 0, 0, 1, &imageInfo);
+		vkUpdateDescriptorSets(_renderHandle->getDevice(), 1, writes, 0, nullptr);
+	}
+
+	vkCmdBindDescriptorSets(_renderHandle->getFrameCmdBuf(), VK_PIPELINE_BIND_POINT_GRAPHICS, ((MaterialVulkan*)m)->pipelineLayout, slot, 1, &descriptor, 0, nullptr);
 }

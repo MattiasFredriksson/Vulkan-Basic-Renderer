@@ -42,6 +42,11 @@ void Mesh::setTechnique(Technique *technique)
 	this->technique = technique;
 }
 
+void Mesh::setTxBuffer(ConstantBuffer *cb)
+{
+	this->txBuffer = cb;
+}
+
 Mesh::~Mesh()
 {
 	for (auto g : geometryBuffers) {

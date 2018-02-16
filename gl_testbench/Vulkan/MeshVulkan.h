@@ -12,5 +12,7 @@ public:
 	~MeshVulkan();
 
 
-	virtual void setTechnique(Technique *technique);
+	//virtual void setTechnique(Technique *technique);
+	//virtual void setTxBuffer(ConstantBuffer *cb);
+
 };

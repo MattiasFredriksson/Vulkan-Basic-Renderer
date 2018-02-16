@@ -4,6 +4,8 @@
 #include "VulkanRenderer.h"
 #include "vulkan\vulkan.h"
 
+class MaterialVulkan;
+
 class ConstantBufferVulkan : public ConstantBuffer
 {
 public:
@@ -14,11 +16,12 @@ public:
 	void init(VulkanRenderer* renderer);
 
 	VkDescriptorBufferInfo* getDescriptorBufferInfo();
-	/* A descriptor may be associated with the buffer...*/
+	
+private:
+
 	VkDescriptorSet descriptor;
 
-private:
-	VulkanRenderer* renderer;
+	VulkanRenderer* _renderHandle;
 
 	std::string name;
 	uint32_t location;

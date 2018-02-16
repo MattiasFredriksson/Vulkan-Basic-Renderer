@@ -10,36 +10,45 @@ ConstantBufferVulkan::ConstantBufferVulkan(std::string NAME, unsigned int locati
 
 ConstantBufferVulkan::~ConstantBufferVulkan()
 {
-	vkDestroyBuffer(renderer->getDevice(), buffer, nullptr);
+	vkDestroyBuffer(_renderHandle->getDevice(), buffer, nullptr);
 }
+
 
 void ConstantBufferVulkan::setData(const void * data, size_t size, Material * m, unsigned int location)
 {
 	if (!buffer)
 	{
-		buffer = createBuffer(renderer->getDevice(), size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+		buffer = createBuffer(_renderHandle->getDevice(), size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 		memSize = size;
-		poolOffset = renderer->bindPhysicalMemory(buffer, MemoryPool::UNIFORM_BUFFER);
-
+		poolOffset = _renderHandle->bindPhysicalMemory(buffer, MemoryPool::UNIFORM_BUFFER);
 		// Set the descriptor info
 		descriptorBufferInfo.buffer = buffer;
 		descriptorBufferInfo.offset = 0;
 		descriptorBufferInfo.range = VK_WHOLE_SIZE;
+
+		// Get & set the descriptor associated with the buffer
+		descriptor = _renderHandle->generateDescriptor(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, ((MaterialVulkan*)m)->getLayoutBinding(location));
+		VkWriteDescriptorSet writes[1];
+		writeDescriptorStruct_UNI_BUFFER(writes[0], descriptor, 0, 0, 1, getDescriptorBufferInfo());
+		vkUpdateDescriptorSets(_renderHandle->getDevice(), 1, writes, 0, nullptr);
 	}
 	else if(memSize < size)
 		throw std::runtime_error("Constant buffer cannot fit the data.");
-	renderer->transferBufferData(buffer, data, size, 0);
+	_renderHandle->transferBufferData(buffer, data, size, 0);
 }
 
 void ConstantBufferVulkan::bind(Material *m)
 {
-	if(descriptor)
-		vkCmdBindDescriptorSets(renderer->getFrameCmdBuf(), VK_PIPELINE_BIND_POINT_GRAPHICS, ((MaterialVulkan*)m)->pipelineLayout, 0, 1, &descriptor, 0, nullptr);
+	if (descriptor) // Only bind if a descriptor is associated...
+	{
+		assert(dynamic_cast<MaterialVulkan*>(m));
+		vkCmdBindDescriptorSets(_renderHandle->getFrameCmdBuf(), VK_PIPELINE_BIND_POINT_GRAPHICS, ((MaterialVulkan*)m)->pipelineLayout, location, 1, &descriptor, 0, nullptr);
+	}
 }
 
 void ConstantBufferVulkan::init(VulkanRenderer* renderer)
 {
-	this->renderer = renderer;
+	this->_renderHandle = renderer;
 }
 
 VkDescriptorBufferInfo* ConstantBufferVulkan::getDescriptorBufferInfo()

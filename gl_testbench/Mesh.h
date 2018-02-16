@@ -42,4 +42,5 @@ public:
 
 
 	virtual void setTechnique(Technique *technique);
+	virtual void setTxBuffer(ConstantBuffer *cb);
 };

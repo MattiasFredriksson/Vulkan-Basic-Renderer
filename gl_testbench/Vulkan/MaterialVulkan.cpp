@@ -12,6 +12,8 @@
 MaterialVulkan::MaterialVulkan(const std::string & name, VulkanRenderer *renderHandle)
 	: name(name), _renderHandle(renderHandle)
 {
+	for (uint32_t i = 0; i < MAX_MATERIAL_DESCRIPTORS; i++)
+		descriptorLayouts[i] = nullptr;
 	spawned = false;
 }
 
@@ -22,6 +24,7 @@ MaterialVulkan::~MaterialVulkan()
 	{
 		delete cb.second;
 	}
+	destroyShaderObjects();
 }
 
 void MaterialVulkan::destroyShaderObjects()
@@ -31,8 +34,11 @@ void MaterialVulkan::destroyShaderObjects()
 		vkDestroyShaderModule(_renderHandle->getDevice(), vertexShader, nullptr);
 		vkDestroyShaderModule(_renderHandle->getDevice(), fragmentShader, nullptr);
 		vkDestroyPipelineLayout(_renderHandle->getDevice(), pipelineLayout, nullptr);
-		vkDestroyDescriptorSetLayout(_renderHandle->getDevice(), matDescriptorLayout, nullptr);
-		vkDestroyDescriptorPool(_renderHandle->getDevice(), matPool, nullptr);
+		for (uint32_t i = 0; i < MAX_MATERIAL_DESCRIPTORS; i++)
+		{
+			if(descriptorLayouts[i])
+				vkDestroyDescriptorSetLayout(_renderHandle->getDevice(), descriptorLayouts[i], nullptr);
+		}
 		spawned = false;
 	}
 }
@@ -57,7 +63,7 @@ int MaterialVulkan::compileMaterial(std::string & errString)
 	//Clear first
 	destroyShaderObjects();
 	int success = createShaders();
-	createDescriptorParams_Material();
+	defineDescriptorLayout();
 	generatePipelineLayout();
 	spawned = true;
 	return success;
@@ -75,10 +81,6 @@ void MaterialVulkan::updateConstantBuffer(const void* data, size_t size, unsigne
 
 int MaterialVulkan::enable()
 {
-	if (program == 0 || isValid == false)
-		return -1;
-	glUseProgram(program);
-
 	for (auto cb : constantBuffers)
 	{
 		cb.second->bind(this);
@@ -120,84 +122,44 @@ std::vector<std::pair<unsigned, VkDescriptorBufferInfo*>> MaterialVulkan::getBuf
 void MaterialVulkan::generatePipelineLayout()
 {
 	// Uniform layout description
-	pipelineLayout = createPipelineLayout(_renderHandle->getDevice(), &matDescriptorLayout, 1);
+	uint32_t num_layouts = descriptorLayouts[DIFFUSE_SLOT] ? 3 : 2;
+	pipelineLayout = createPipelineLayout(_renderHandle->getDevice(), &descriptorLayouts[TRANSLATION], num_layouts);
 }
 
 #pragma region Descriptor set & layout
 
 
-VkDescriptorSet MaterialVulkan::allocMeshDescriptor()
+VkDescriptorSetLayout& MaterialVulkan::getLayoutBinding(uint32_t binding)
 {
-	return createDescriptorSet(_renderHandle->getDevice(), meshPool, &meshDescriptorLayout, 1);
+	return descriptorLayouts[binding];
 }
 
-VkDescriptorPool createDescriptorPool(VkDevice device, uint32_t uniBuffers, uint32_t imageBuffers, uint32_t poolSize)
+void MaterialVulkan::defineDescriptorLayout()
 {
-	// Describes how many of every descriptor type can be created in the pool
-	VkDescriptorPoolSize descriptorSizes[MAX_DESCRIPTOR_TYPES];
-	uint32_t i = 0;
-	if (uniBuffers > 0)
-	{
-		descriptorSizes[i].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		descriptorSizes[i].descriptorCount = uniBuffers;
-		i++;
-	}
-	if (imageBuffers > 0)
-	{
-		descriptorSizes[i].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		descriptorSizes[i].descriptorCount = imageBuffers;
-		i++;
-	}
-	// Create pool
-	return createDescriptorPool(device, descriptorSizes, i, poolSize);
-}
-
-void MaterialVulkan::createDescriptorParams_Mesh()
-{
-	// This is all hardcoded, not very good
-	std::vector<VkDescriptorSetLayoutBinding> layoutBindings;
-	uint32_t uniBuf = 0;
 
 	if (hasDefine(Material::ShaderType::VS, "#define TRANSLATION "))
 	{
-		uniBuf++;
-		layoutBindings.push_back(VkDescriptorSetLayoutBinding{});
-		writeLayoutBinding(layoutBindings.back(), TRANSLATION, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT);
+		int location = TRANSLATION;
+		VkDescriptorSetLayoutBinding binding;
+		writeLayoutBinding(binding, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT);
+		descriptorLayouts[location] = createDescriptorLayout(_renderHandle->getDevice(), &binding, 1);
 	}
-
-	// Create mesh descriptor layout
-	meshDescriptorLayout = createDescriptorLayout(_renderHandle->getDevice(), layoutBindings.data(), layoutBindings.size());
-	meshPool = createDescriptorPool(_renderHandle->getDevice(), uniBuf, 0, 40);
-}
-
-void MaterialVulkan::createDescriptorParams_Material()
-{
-	// This is all hardcoded, not very good
-	std::vector<VkDescriptorSetLayoutBinding> layoutBindings;
-
-	uint32_t uniBuf = 0, imgSamp = 0;
-
 	VkShaderStageFlags stage = hasDefine(Material::ShaderType::VS, "#define DIFFUSE_TINT ") ? VK_SHADER_STAGE_FRAGMENT_BIT : 0;
 	stage |= hasDefine(Material::ShaderType::PS, "#define DIFFUSE_TINT ") ? VK_SHADER_STAGE_FRAGMENT_BIT : 0;
 	if (stage)
 	{
-		uniBuf++;
-		layoutBindings.push_back(VkDescriptorSetLayoutBinding{});
-		writeLayoutBinding(layoutBindings.back(), DIFFUSE_TINT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, stage);
+		int location = DIFFUSE_TINT;
+		VkDescriptorSetLayoutBinding binding;
+		writeLayoutBinding(binding, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, stage);
+		descriptorLayouts[location] = createDescriptorLayout(_renderHandle->getDevice(), &binding, 1);
 	}
-
 	if (hasDefine(Material::ShaderType::PS, "#define DIFFUSE_SLOT "))
 	{
-		imgSamp++;
-		layoutBindings.push_back(VkDescriptorSetLayoutBinding{});
-		writeLayoutBinding(layoutBindings.back(), DIFFUSE_SLOT, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT);
+		int location = DIFFUSE_SLOT;
+		VkDescriptorSetLayoutBinding binding;
+		writeLayoutBinding(binding, 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT);
+		descriptorLayouts[location] = createDescriptorLayout(_renderHandle->getDevice(), &binding, 1);
 	}
-	// Create material descriptor layout
-	matDescriptorLayout = createDescriptorLayout(_renderHandle->getDevice(), layoutBindings.data(), layoutBindings.size());
-
-	// Create set
-	matPool = createDescriptorPool(_renderHandle->getDevice(), uniBuf, imgSamp, 1);
-	matDescriptor = createDescriptorSet(_renderHandle->getDevice(), matPool, &matDescriptorLayout, 1);
 }
 
 #pragma endregion
@@ -240,6 +202,7 @@ int MaterialVulkan::createShaders()
 		std::cout << "Failed to create fragment shader module.\n";
 		return -2;
 	}
+	return 0;
 }
 
 const char *path = "..\\assets\\Vulkan\\";

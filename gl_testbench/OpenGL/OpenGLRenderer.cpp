@@ -151,7 +151,7 @@ void OpenGLRenderer::frame()
 			{
 				// we do not really know here if the sampler has been
 				// defined in the shader.
-				t.second->bind(t.first);
+				t.second->bind(t.first, mesh->technique->getMaterial());
 			}
 			for (auto element : mesh->geometryBuffers) {
 				mesh->bindIAVertexBuffer(element.first);
@@ -174,7 +174,7 @@ void OpenGLRenderer::frame()
 				{
 					// we do not really know here if the sampler has been
 					// defined in the shader.
-					t.second->bind(t.first);
+					t.second->bind(t.first, mesh->technique->getMaterial());
 				}
 				for (auto element : mesh->geometryBuffers) {
 					mesh->bindIAVertexBuffer(element.first);

@@ -69,7 +69,7 @@ ConstantBuffer* VulkanRenderer::makeConstantBuffer(std::string NAME, unsigned in
 }
 Technique* VulkanRenderer::makeTechnique(Material* m, RenderState* r)
 {
-	return (Technique*) new TechniqueVulkan(m, r, this);
+	return (Technique*) new TechniqueVulkan(m, r, this, colorPass);
 }
 
 
@@ -304,6 +304,11 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 	imageAvailableSemaphore = createSemaphore(device);
 	renderFinishedSemaphore = createSemaphore(device);
 
+	descriptorPools[VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER]
+		= createDescriptorPool(device, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 20000);
+	descriptorPools[VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER]
+		= createDescriptorPool(device, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 20000);
+
 	return 0;
 }
 
@@ -321,6 +326,11 @@ int VulkanRenderer::shutdown()
 	vkDeviceWaitIdle(device);
 
 	// Clean up Vulkan
+	for (unsigned int i = 0; i < sizeof(VkDescriptorPool) / sizeof(descriptorPools); i++)
+	{
+		if(descriptorPools[i])
+			vkDestroyDescriptorPool(device, descriptorPools[i], nullptr);
+	}
 	vkDestroyCommandPool(device, drawingCommandPool, nullptr);
 	vkDestroyCommandPool(device, stagingCommandPool, nullptr);
 	vkDestroyBuffer(device, stagingBuffer, nullptr);
@@ -361,7 +371,7 @@ void VulkanRenderer::setRenderState(RenderState* ps)
 }
 void VulkanRenderer::submit(Mesh* mesh)
 {
-
+	drawLists[mesh->technique].push_back(mesh);
 }
 void VulkanRenderer::frame()
 {
@@ -399,8 +409,30 @@ void VulkanRenderer::frame()
 
 	// Draw stuff..?:)
 	
-	vkCmdBindPipeline(_frameCmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
-	vkCmdDraw(_frameCmdBuf, 3, 1, 0, 0);
+	for (auto work : drawLists)
+	{
+		TechniqueVulkan *vk_tec = (TechniqueVulkan*)work.first;
+		assert(dynamic_cast<TechniqueVulkan*>(work.first));
+
+		vkCmdBindPipeline(_frameCmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS, vk_tec->pipeline);
+		work.first->enable(this);
+		for (auto mesh : work.second)
+		{
+			uint32_t numberElements = (uint32_t)mesh->geometryBuffers[0].numElements;
+			for (auto t : mesh->textures)
+			{
+				// we do not really know here if the sampler has been
+				// defined in the shader.
+				t.second->bind(t.first, mesh->technique->getMaterial());
+			}
+			for (auto element : mesh->geometryBuffers) {
+				mesh->bindIAVertexBuffer(element.first);
+			}
+			mesh->txBuffer->bind(vk_tec->getMaterial());
+			vkCmdDraw(_frameCmdBuf, numberElements, 1, 0, 0);
+		}
+	}
+	drawLists.clear();
 
 	vkCmdEndRenderPass(_frameCmdBuf);
 	if (vkEndCommandBuffer(_frameCmdBuf) != VK_SUCCESS) {
@@ -495,6 +527,11 @@ size_t VulkanRenderer::bindPhysicalMemory(VkImage img, MemoryPool pool)
 	// Update offset
 	memPool[pool].freeOffset = freeOffset + memReq.size;
 	return freeOffset;
+}
+
+VkDescriptorSet VulkanRenderer::generateDescriptor(VkDescriptorType type, VkDescriptorSetLayout &layout)
+{
+	return createDescriptorSet(device, descriptorPools[type], &layout);
 }
 
 

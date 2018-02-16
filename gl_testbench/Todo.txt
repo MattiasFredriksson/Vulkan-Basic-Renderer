@@ -1,15 +1,7 @@
-
-Points of interest:
-
-Created a render frame base (framebuffer, acquisation, present...), it 'seems' to be working ;)
-Fixed shutdown crash issue by letting swapchain destruction destroy it's images.
-
 Issues:
 
 A 'few' objects not destroyed.
 
 Todo:
 
-Render stuff
-Create descriptors and a descriptor set in the materials
-...
+Set cull mode back to: VK_CULL_MODE_BACK_BIT (when fixes fixed)
