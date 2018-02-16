@@ -115,7 +115,7 @@ void writeLayoutBinding(VkDescriptorSetLayoutBinding &layoutBinding, uint32_t bi
 /* Create a VkDescriptorSetLayout from the bindings.
 */
 VkDescriptorSetLayout createDescriptorLayout(VkDevice device, VkDescriptorSetLayoutBinding *bindings, size_t num_binding);
-VkDescriptorPool createDescriptorPool(VkDevice device, VkDescriptorType type, uint32_t poolSize);
+VkDescriptorPool createDescriptorPoolSingle(VkDevice device, VkDescriptorType type, uint32_t poolSize);
 VkDescriptorPool createDescriptorPool(VkDevice device, VkDescriptorPoolSize *sizeTypes, uint32_t num_types, uint32_t poolSize);
 VkDescriptorSet createDescriptorSet(VkDevice device, VkDescriptorPool pool, VkDescriptorSetLayout *layouts);
 #pragma endregion
@@ -908,12 +908,13 @@ VkDescriptorPool createDescriptorPool(VkDevice device, VkDescriptorPoolSize *siz
 
 /* Create a descriptor pool for descriptor sets of single items.
 */
-VkDescriptorPool createDescriptorPool(VkDevice device, VkDescriptorType type, uint32_t poolSize)
+VkDescriptorPool createDescriptorPoolSingle(VkDevice device, VkDescriptorType type, uint32_t poolSize)
 {
 	// Describes how many of every descriptor type can be created in the pool
 	VkDescriptorPoolSize descriptorSizes;
 	descriptorSizes.type = type;
-	descriptorSizes.descriptorCount = 1;
+	// Number of descriptors of this type allocated inside the pool (for our pool of single types this equals the number of descriptor sets allocated).
+	descriptorSizes.descriptorCount = poolSize;
 	// Create pool
 	return createDescriptorPool(device, &descriptorSizes, 1, poolSize);
 }
