@@ -83,6 +83,9 @@ void Texture2DVulkan::bind(unsigned int slot, Material *m)
 		if (!descriptor)
 			// Descriptor
 			descriptor = _renderHandle->generateDescriptor(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, ((MaterialVulkan*)m)->getLayoutBinding(slot));
+
+		/* This code is broken, can't update descriptor when bound. Works as the texture is only bound to one slot/layout.
+		*/
 		imageInfo.sampler = vksamp->_samplerHandle;
 		VkWriteDescriptorSet writes[1];
 		writeDescriptorStruct_IMG_COMBINED(writes[0], descriptor, 0, 0, 1, &imageInfo);

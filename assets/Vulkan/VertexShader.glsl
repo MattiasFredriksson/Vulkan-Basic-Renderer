@@ -5,7 +5,7 @@
 #endif
 
 #ifdef TEXTCOORD
-	layout(location=NORMAL) in vec2 uv_in;
+	layout(location=TEXTCOORD) in vec2 uv_in;
 	layout(location=TEXTCOORD) out vec2 uv_out;
 #endif
 layout(location=POSITION) in vec4 position_in;
