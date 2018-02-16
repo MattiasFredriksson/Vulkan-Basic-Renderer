@@ -1,7 +1,5 @@
 Issues:
 
-A 'few' objects not destroyed.
-
 Todo:
 
-Set cull mode back to: VK_CULL_MODE_BACK_BIT (when fixes fixed)
+Add a transfer queue + sync primitives.

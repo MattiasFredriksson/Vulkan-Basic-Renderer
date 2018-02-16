@@ -66,7 +66,7 @@ void TechniqueVulkan::createPipeline()
 	if (rState->getWireframe())
 		rasterFlag |= WIREFRAME_BIT;
 	VkPipelineRasterizationStateCreateInfo pipelineRasterizationStateCreateInfo =
-		defineRasterizationState(rasterFlag, VK_CULL_MODE_NONE);
+		defineRasterizationState(rasterFlag, VK_CULL_MODE_BACK_BIT);
 
 	// Multisampling
 	VkPipelineMultisampleStateCreateInfo pipelineMultisampleStateCreateInfo =
