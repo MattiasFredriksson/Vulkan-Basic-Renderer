@@ -29,7 +29,7 @@ void main () {
 	fragment_color = col * vec4(diffuseTint.rgb,1.0);
 
 	return;
-	
+
 //	#ifdef NORMAL
 //		fragment_color = vec4(1.0,1.0,normal_in.z, 1.0) * vec4(diffuseTint.rgb, 1.0);
 //	#else

@@ -54,7 +54,7 @@ void updateDelta()
 };
 
 // TOTAL_TRIS pretty much decides how many drawcalls in a brute force approach.
-constexpr int TOTAL_TRIS = 100.0f;
+constexpr int TOTAL_TRIS = 100;
 // this has to do with how the triangles are spread in the screen, not important.
 constexpr int TOTAL_PLACES = 2 * TOTAL_TRIS;
 float xt[TOTAL_PLACES], yt[TOTAL_PLACES];
@@ -97,20 +97,20 @@ void updateScene()
 	*/
 	{
 		static long long shift = 0;
-		const int size = scene.size();
-		for (int i = 0; i < size; i++)
+		const size_t size = scene.size();
+		for (size_t i = 0; i < size; i++)
 		{
 			const float4 trans { 
 				xt[(int)(float)(i + shift) % (TOTAL_PLACES)], 
 				yt[(int)(float)(i + shift) % (TOTAL_PLACES)], 
-				i * (1.0 / TOTAL_PLACES),
-				0.0
+				i * (1.f / TOTAL_PLACES),
+				0.0f
 			};
 
 			scene[i]->txBuffer->setData(&trans, sizeof(trans), scene[i]->technique->getMaterial(), TRANSLATION);
 		}
 		// just to make them move...
-		shift+=max(TOTAL_TRIS / 1000.0,TOTAL_TRIS / 100.0);
+		shift+= (long long)max(TOTAL_TRIS / 1000.0,TOTAL_TRIS / 100.0);
 	}
 	return;
 };
@@ -163,18 +163,18 @@ int initialiseTestbench()
 		   defineTXName + defineDiffCol + defineDiffColName }, 
 	};
 
-	float degToRad = M_PI / 180.0;
-	float scale = (float)TOTAL_PLACES / 359.9;
+	float degToRad = (float)M_PI / 180.0f;
+	float scale = (float)TOTAL_PLACES / 359.9f;
 	for (int a = 0; a < TOTAL_PLACES; a++)
 	{
-		xt[a] = 0.8f * cosf(degToRad * ((float)a/scale) * 3.0);
-		yt[a] = 0.8f * sinf(degToRad * ((float)a/scale) * 2.0);
+		xt[a] = 0.8f * cosf(degToRad * ((float)a/scale) * 3.f);
+		yt[a] = 0.8f * sinf(degToRad * ((float)a/scale) * 2.f);
 	};
 
 	// triangle geometry:
-	float4 triPos[3] = { { 0.0f,  0.05, 0.0f, 1.0f },{ 0.05, -0.05, 0.0f, 1.0f },{ -0.05, -0.05, 0.0f, 1.0f } };
+	float4 triPos[3] = { { 0.0f,  0.05f, 0.0f, 1.0f },{ 0.05f, -0.05f, 0.0f, 1.0f },{ -0.05f, -0.05f, 0.0f, 1.0f } };
 	float4 triNor[3] = { { 0.0f,  0.0f, 1.0f, 0.0f },{ 0.0f, 0.0f, 1.0f, 0.0f },{ 0.0f, 0.0f, 1.0f, 0.0f } };
-	float2 triUV[3] =  { { 0.5f,  -0.99f },{ 1.49f, 1.1f },{ -0.51, 1.1f } };
+	float2 triUV[3] =  { { 0.5f,  -0.99f },{ 1.49f, 1.1f },{ -0.51f, 1.1f } };
 
 	// load Materials.
 	std::string shaderPath = renderer->getShaderPath();
@@ -302,10 +302,16 @@ void shutdown() {
 
 int main(int argc, char *argv[])
 {
+#if defined(VULKANENGINE)
 	renderer = Renderer::makeRenderer(Renderer::BACKEND::VULKAN);
+#elif defined(GLENGINE)
+	renderer = Renderer::makeRenderer(Renderer::BACKEND::GL45);
+#else
+	throw std::runtime_error("No engine specified");
+#endif
 	renderer->initialize(800,600);
 	renderer->setWinTitle("Vulkan");
-	renderer->setClearColor(0.0, 0.1, 0.1, 1.0);
+	renderer->setClearColor(0.f, 0.1f, 0.1f, 1.f);
 	initialiseTestbench();
 	run();
 	shutdown();

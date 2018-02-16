@@ -10,6 +10,7 @@
 #include "VertexBufferGL.h"
 #include "ConstantBufferGL.h"
 #include "Texture2DGL.h"
+#include <iostream>
 
 OpenGLRenderer::OpenGLRenderer()
 {
@@ -134,6 +135,16 @@ void OpenGLRenderer::submit(Mesh* mesh)
 		drawList.push_back(mesh);
 };
 
+void checkGLError()
+{
+	GLenum err;
+	while ((err = glGetError()) != GL_NO_ERROR)
+	{
+		// Process/log the error.
+		std::cout << "Gl error: " << err << "\n";
+	}
+}
+
 /*
  Naive implementation, no re-ordering, checking for state changes, etc.
  TODO.
@@ -145,7 +156,7 @@ void OpenGLRenderer::frame()
 		for (auto mesh : drawList)
 		{
 			mesh->technique->enable(this);
-			size_t numberElements = mesh->geometryBuffers[0].numElements;
+			GLsizei numberElements = (GLsizei)mesh->geometryBuffers[0].numElements;
 			glBindTexture(GL_TEXTURE_2D, 0);
 			for (auto t : mesh->textures)
 			{
@@ -168,7 +179,7 @@ void OpenGLRenderer::frame()
 			work.first->enable(this);
 			for (auto mesh : work.second)
 			{
-				size_t numberElements = mesh->geometryBuffers[0].numElements;
+				GLsizei numberElements = (GLsizei)mesh->geometryBuffers[0].numElements;
 				glBindTexture(GL_TEXTURE_2D, 0);
 				for (auto t : mesh->textures)
 				{
