@@ -103,9 +103,10 @@ void updateScene()
 			const float4 trans { 
 				xt[(int)(float)(i + shift) % (TOTAL_PLACES)], 
 				yt[(int)(float)(i + shift) % (TOTAL_PLACES)], 
-				i * (-1.0 / TOTAL_PLACES),
+				i * (1.0 / TOTAL_PLACES),
 				0.0
 			};
+
 			scene[i]->txBuffer->setData(&trans, sizeof(trans), scene[i]->technique->getMaterial(), TRANSLATION);
 		}
 		// just to make them move...
@@ -118,6 +119,7 @@ void updateScene()
 void renderScene()
 {
 	renderer->clearBuffer(CLEAR_BUFFER_FLAGS::COLOR | CLEAR_BUFFER_FLAGS::DEPTH);
+	int i = 0;
 	for (auto m : scene)
 	{
 		renderer->submit(m);
