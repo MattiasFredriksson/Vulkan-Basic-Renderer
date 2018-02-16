@@ -1144,7 +1144,8 @@ VkPipelineRasterizationStateCreateInfo defineRasterizationState(uint32_t rasterF
 	rasterizationState.cullMode = cullMode;
 	rasterizationState.frontFace = hasFlag(rasterFlags, CLOCKWISE_FACE_BIT) ? VK_FRONT_FACE_CLOCKWISE : VK_FRONT_FACE_COUNTER_CLOCKWISE;
 	rasterizationState.lineWidth = lineWidth; // For line rendering
-											  // Depth bias
+											  
+	// Depth bias
 	rasterizationState.depthBiasEnable = VK_FALSE;
 	rasterizationState.depthBiasConstantFactor = 0.0f;
 	rasterizationState.depthBiasClamp = 0.0f;
