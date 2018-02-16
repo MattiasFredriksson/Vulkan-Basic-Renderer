@@ -4,6 +4,13 @@ Mesh::Mesh()
 {
 };
 
+Mesh::~Mesh()
+{
+	for (auto g : geometryBuffers) {
+		g.second.buffer->decRef();
+	}
+	delete txBuffer;
+}
 /*
 	buffer: is a VertexBuffer*
 	offset: offset of the first byte in the buffer used when binding
@@ -45,11 +52,4 @@ void Mesh::setTechnique(Technique *technique)
 void Mesh::setTxBuffer(ConstantBuffer *cb)
 {
 	this->txBuffer = cb;
-}
-
-Mesh::~Mesh()
-{
-	for (auto g : geometryBuffers) {
-		g.second.buffer->decRef();
-	}
 }
