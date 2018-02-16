@@ -304,10 +304,12 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 	imageAvailableSemaphore = createSemaphore(device);
 	renderFinishedSemaphore = createSemaphore(device);
 
+	for (uint32_t i = 0; i < MAX_DESCRIPTOR_POOLS; i++)
+		descriptorPools[i] = NULL;
 	descriptorPools[VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER]
-		= createDescriptorPoolSingle(device, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 20000);
+		= createDescriptorPoolSingle(device, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2000);
 	descriptorPools[VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER]
-		= createDescriptorPoolSingle(device, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 20000);
+		= createDescriptorPoolSingle(device, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2000);
 
 	return 0;
 }
@@ -326,7 +328,7 @@ int VulkanRenderer::shutdown()
 	vkDeviceWaitIdle(device);
 
 	// Clean up Vulkan
-	for (unsigned int i = 0; i < sizeof(VkDescriptorPool) / sizeof(descriptorPools); i++)
+	for (unsigned int i = 0; i < MAX_DESCRIPTOR_POOLS; i++)
 	{
 		if(descriptorPools[i])
 			vkDestroyDescriptorPool(device, descriptorPools[i], nullptr);
