@@ -913,7 +913,7 @@ VkDescriptorPool createDescriptorPool(VkDevice device, VkDescriptorType type, ui
 	// Describes how many of every descriptor type can be created in the pool
 	VkDescriptorPoolSize descriptorSizes;
 	descriptorSizes.type = type;
-	descriptorSizes.descriptorCount = 1;
+	descriptorSizes.descriptorCount = poolSize;
 	// Create pool
 	return createDescriptorPool(device, &descriptorSizes, 1, poolSize);
 }
