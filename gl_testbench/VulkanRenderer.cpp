@@ -470,6 +470,9 @@ void VulkanRenderer::frame()
 	presentInfo.pImageIndices = &imageIndex;
 	presentInfo.pResults = nullptr; // Optional
 	vkQueuePresentKHR(queue, &presentInfo);
+
+	vkQueueWaitIdle(queue);
+	vkResetCommandPool(device, drawingCommandPool, VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT);
 }
 
 
