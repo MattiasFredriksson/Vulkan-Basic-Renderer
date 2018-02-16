@@ -31,6 +31,8 @@ enum MemoryPool
 	Count = 5
 };
 
+const int MAX_DESCRIPTOR_POOLS = 12;
+
 // Size in bytes of the memory types used
 const uint32_t STORAGE_SIZE[(int)MemoryPool::Count] = { 2048 * 2048, 1024*1024, 1024 * 1024, 1024 * 1024, 1024 * 1024 };
 
@@ -111,7 +113,7 @@ private:
 
 	/*
 	*/
-	VkDescriptorPool descriptorPools[12];
+	VkDescriptorPool descriptorPools[MAX_DESCRIPTOR_POOLS];
 
 	std::unordered_map<Technique*, std::vector<Mesh*>> drawLists;
 	

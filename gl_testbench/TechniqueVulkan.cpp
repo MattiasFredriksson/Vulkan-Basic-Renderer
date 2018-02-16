@@ -14,6 +14,7 @@ TechniqueVulkan::TechniqueVulkan(Material* m, RenderState* r, VulkanRenderer* re
 
 TechniqueVulkan::~TechniqueVulkan()
 {
+	vkDestroyPipeline(_renderHandle->getDevice(), pipeline, nullptr);
 }
 
 void TechniqueVulkan::enable(Renderer* renderer)
