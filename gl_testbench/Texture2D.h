@@ -16,7 +16,7 @@ public:
 	// bind texture to be used in the pipeline, binding to
 	// slot "slot" in the active fragment shader.
 	// slot can have different interpretation depending on the API.
-	virtual void bind(unsigned int slot, Material *m) = 0;
+	virtual void bind(unsigned int slot) = 0;
 
 	// if no sampler is set here, a default sampler should be used.
 	Sampler2D* sampler = nullptr;

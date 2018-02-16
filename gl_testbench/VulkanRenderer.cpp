@@ -418,7 +418,7 @@ void VulkanRenderer::frame()
 			{
 				// we do not really know here if the sampler has been
 				// defined in the shader.
-				t.second->bind(t.first, mesh->technique->getMaterial());
+				t.second->bind(t.first);
 			}
 			for (auto element : mesh->geometryBuffers) {
 				mesh->bindIAVertexBuffer(element.first);

@@ -14,7 +14,7 @@ public:
 	~Texture2DGL();
 
 	int loadFromFile(std::string filename);
-	void bind(unsigned int slot, Material *);
+	void bind(unsigned int slot);
 
 	// OPENGL HANDLE
 	GLuint textureHandle = 0;
