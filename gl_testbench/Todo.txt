@@ -1,6 +1,7 @@
 Issues:
 
+Release is not working Surface is lost when calling vkGetPhysicalDeviceSurfaceCapabilitiesKHR
+
 Todo:
 
 Add a transfer queue + sync primitives.
-Depth map

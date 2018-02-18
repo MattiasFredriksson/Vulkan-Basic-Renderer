@@ -79,30 +79,32 @@ void TechniqueVulkan::createPipeline()
 
 	VkPipelineColorBlendStateCreateInfo pipelineColorBlendStateCreateInfo =
 		defineBlendState(&pipelineColorBlendAttachmentState, 1);
-	
 
-	VkGraphicsPipelineCreateInfo pipelineCreateInfo = {};
-	pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-	pipelineCreateInfo.pNext = nullptr;
-	pipelineCreateInfo.flags = 0;
-	pipelineCreateInfo.stageCount = 2;
-	pipelineCreateInfo.pStages = stages;
-	pipelineCreateInfo.pVertexInputState = &pipelineVertexInputStateCreateInfo;
-	pipelineCreateInfo.pInputAssemblyState = &pipelineInputAssemblyStateCreateInfo;
-	pipelineCreateInfo.pTessellationState = nullptr;
-	pipelineCreateInfo.pViewportState = &pipelineViewportStateCreateInfo;
-	pipelineCreateInfo.pRasterizationState = &pipelineRasterizationStateCreateInfo;
-	pipelineCreateInfo.pMultisampleState = &pipelineMultisampleStateCreateInfo;
-	pipelineCreateInfo.pDepthStencilState = nullptr;
-	pipelineCreateInfo.pColorBlendState = &pipelineColorBlendStateCreateInfo;
-	pipelineCreateInfo.pDynamicState = rState->getDynamicState();
-	pipelineCreateInfo.layout = _renderHandle->getPipelineLayout();
-	pipelineCreateInfo.renderPass = _passHandle;
-	pipelineCreateInfo.subpass = 0;
-	pipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
-	pipelineCreateInfo.basePipelineIndex = 0;
+	VkPipelineDepthStencilStateCreateInfo depthStencil =
+		defineDepthState();
 
-	VkResult err = vkCreateGraphicsPipelines(_renderHandle->getDevice(), VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &pipeline);
+	VkGraphicsPipelineCreateInfo pipelineInfo = {};
+	pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+	pipelineInfo.pNext = nullptr;
+	pipelineInfo.flags = 0;
+	pipelineInfo.stageCount = 2;
+	pipelineInfo.pStages = stages;
+	pipelineInfo.pVertexInputState = &pipelineVertexInputStateCreateInfo;
+	pipelineInfo.pInputAssemblyState = &pipelineInputAssemblyStateCreateInfo;
+	pipelineInfo.pTessellationState = nullptr;
+	pipelineInfo.pViewportState = &pipelineViewportStateCreateInfo;
+	pipelineInfo.pRasterizationState = &pipelineRasterizationStateCreateInfo;
+	pipelineInfo.pMultisampleState = &pipelineMultisampleStateCreateInfo;
+	pipelineInfo.pDepthStencilState = &depthStencil;
+	pipelineInfo.pColorBlendState = &pipelineColorBlendStateCreateInfo;
+	pipelineInfo.pDynamicState = rState->getDynamicState();
+	pipelineInfo.layout = _renderHandle->getPipelineLayout();
+	pipelineInfo.renderPass = _passHandle;
+	pipelineInfo.subpass = 0;
+	pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
+	pipelineInfo.basePipelineIndex = 0;
+
+	VkResult err = vkCreateGraphicsPipelines(_renderHandle->getDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline);
 
 	if (err != VK_SUCCESS)
 		throw std::runtime_error("Failed to create pipeline.");

@@ -78,7 +78,7 @@ public:
 	/* Transfer data to the specific buffer. */
 	void transferBufferData(VkBuffer buffer, const void* data, size_t size, size_t offset);
 	void transferImageData(VkImage image, const void* data, glm::uvec3 img_size, uint32_t pixel_bytes, glm::ivec3 offset = glm::ivec3(0));
-	void transitionImageFormat(VkImage image, VkFormat format, VkImageLayout fromLayout, VkImageLayout toLayout);
+	void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout fromLayout, VkImageLayout toLayout);
 
 	VkSurfaceFormatKHR getSwapchainFormat();
 	VkCommandBuffer getFrameCmdBuf();
@@ -105,7 +105,10 @@ private:
 	std::vector<VkImage> swapchainImages;				// Array of images in the swapchain, use vkAquireNextImageKHR(...) to aquire image for drawing to
 	std::vector<VkImageView> swapchainImageViews;		// Image views for the swap chain images
 	std::vector<VkFramebuffer> swapChainFramebuffers;	// Combined sets of images that make up each frame buffer.
-	glm::vec4 clearColor;
+	VkFormat depthFormat;								// Depth image format.
+	VkImage depthImage;									// Frame buffer depth image
+	VkImageView depthImageView;							// Frame buffer depth image view.
+	glm::vec4 clearColor;								// Frame buffer clear color.
 
 	/* Render pass & Pipelines
 	Dependent constructs. 
@@ -121,6 +124,7 @@ private:
 	VkSemaphore imageAvailableSemaphore;
 	VkSemaphore renderFinishedSemaphore;
 	VkCommandBuffer _frameCmdBuf;
+	uint32_t frameBufIndex;					//Tracks frame buffer index for current frame
 
 	/*
 	*/
@@ -144,8 +148,11 @@ private:
 	void updateStagingBuffer(const void* data, size_t size);								// Writes memory from data into the staging buffer
 	void allocateBufferMemory(MemoryPool type, size_t size, VkFlags usage);					// Allocates memory pool buffer data
 	void allocateImageMemory(MemoryPool type, size_t size, VkFormat imgFormat);				// Allocates memory pool image data
+	void allocateImageMemory(MemoryPool type, VkImage &image, VkFormat imgFormat);
 
 
 	void defineDescriptorLayout();
 	void generatePipelineLayout();
+	void createDepthComponents();
+	void createCommandPools();
 };

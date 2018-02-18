@@ -80,6 +80,13 @@ std::vector<char*> checkValidationLayerSupport(char** validationLayers, size_t n
 VkPresentModeKHR chooseSwapPresentMode(VkPhysicalDevice &device, VkSurfaceKHR &surface, VkPresentModeKHR *prefered_modes, size_t num_prefered);
 VkFramebuffer createFramebuffer(VkDevice device, VkRenderPass pass, VkExtent2D frameDim, VkImageView *attachments, uint32_t num_attachment);
 VkRenderPass createRenderPass_SingleColor(VkDevice device, VkFormat swapChainImgFormat);
+VkRenderPass createRenderPass_SingleColorDepth(VkDevice device, VkFormat swapChainImgFormat, VkFormat depthFormat);
+
+VkFormat findSupportedFormat(VkPhysicalDevice physDevice, const VkFormat* candidates, size_t num_cand, VkImageTiling tiling, VkFormatFeatureFlags features);
+VkFormat findDepthFormat(VkPhysicalDevice physDevice);
+bool hasStencilComponent(VkFormat format);
+
+
 
 /* Memory */
 
@@ -88,7 +95,9 @@ VkVertexInputBindingDescription defineVertexBinding(uint32_t bind_index, uint32_
 VkVertexInputAttributeDescription defineVertexAttribute(uint32_t bind_index, uint32_t loc_index, VkFormat format, uint32_t attri_offset);
 
 VkImage createTexture2D(VkDevice device, uint32_t width, uint32_t height, VkFormat format = VK_FORMAT_R8G8B8A8_UNORM, VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL);
-VkImageView createImageView(VkDevice device, VkImage image, VkFormat format, VkImageViewType viewType = VK_IMAGE_VIEW_TYPE_2D);
+VkImage createDepthBuffer(VkDevice device, uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL);
+VkImageView createImageView(VkDevice device, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT, VkImageViewType viewType = VK_IMAGE_VIEW_TYPE_2D);
+
 VkSampler createSampler(VkDevice device, VkFilter magFilter = VK_FILTER_LINEAR, VkFilter minFilter = VK_FILTER_LINEAR, 
 	VkSamplerAddressMode wrap_s = VK_SAMPLER_ADDRESS_MODE_REPEAT, VkSamplerAddressMode wrap_t = VK_SAMPLER_ADDRESS_MODE_REPEAT);
 
@@ -145,6 +154,7 @@ typedef enum RasterizationFlagBits
 	NO_RASTERIZATION_BIT = 0x00000008	// Primitives are discarded before rasterization stage...
 } RasterizationFlagBits;
 VkPipelineRasterizationStateCreateInfo defineRasterizationState(uint32_t rasterFlags, VkCullModeFlags cullModeFlags, float lineWidth = 1.f);
+VkPipelineDepthStencilStateCreateInfo defineDepthState();
 
 VkPipelineShaderStageCreateInfo defineShaderStage(VkShaderStageFlagBits stage, VkShaderModule shader, const char* entryFunc = "main");
 
@@ -411,9 +421,8 @@ VkFramebuffer createFramebuffer(VkDevice device, VkRenderPass pass, VkExtent2D f
 	return frameBuffer;
 }
 
-/* Create a simple single render pass with attached color buffer.
-*/
-VkRenderPass createRenderPass_SingleColor(VkDevice device, VkFormat swapChainImgFormat) {
+VkAttachmentDescription defineFramebufColor(VkFormat swapChainImgFormat)
+{
 	VkAttachmentDescription colAttach = {};
 	colAttach.format = swapChainImgFormat;
 	colAttach.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -423,7 +432,27 @@ VkRenderPass createRenderPass_SingleColor(VkDevice device, VkFormat swapChainImg
 	colAttach.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 	colAttach.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	colAttach.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	return colAttach;
+}
+VkAttachmentDescription defineFramebufDepth(VkFormat depthImgFormat)
+{
+	VkAttachmentDescription depthAttach = {};
+	depthAttach.format = depthImgFormat;
+	depthAttach.samples = VK_SAMPLE_COUNT_1_BIT;
+	depthAttach.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;					// Clear col/depth buff before rendering.
+	depthAttach.storeOp = VK_ATTACHMENT_STORE_OP_STORE;				// Store col/depth buff data for access/present.
+	depthAttach.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	depthAttach.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	depthAttach.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	depthAttach.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+	return depthAttach;
+}
 
+/* Create a simple single render pass with attached color buffer.
+*/
+VkRenderPass createRenderPass_SingleColor(VkDevice device, VkFormat swapChainImgFormat) {
+
+	VkAttachmentDescription colAttach = defineFramebufColor(swapChainImgFormat);
 	// Referenced renderbuffer target
 	VkAttachmentReference colorAttachmentRef = {};
 	colorAttachmentRef.attachment = 0;
@@ -458,6 +487,96 @@ VkRenderPass createRenderPass_SingleColor(VkDevice device, VkFormat swapChainImg
 		throw std::runtime_error("failed to create render pass!");
 	}
 	return pass;
+}
+
+/* Create a simple single render pass with attached color buffer and depth buffer.
+*/
+VkRenderPass createRenderPass_SingleColorDepth(VkDevice device, VkFormat swapChainImgFormat, VkFormat depthFormat) {
+	const int num_attach = 2;
+	VkAttachmentDescription attach[num_attach] = {
+		defineFramebufColor(swapChainImgFormat),
+		defineFramebufDepth(depthFormat)
+	};
+
+	// Referenced renderbuffer target
+	VkAttachmentReference colorAttachmentRef = {};
+	colorAttachmentRef.attachment = 0;
+	colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	VkAttachmentReference depthAttachmentRef = {};
+	depthAttachmentRef.attachment = 1;
+	depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+	VkSubpassDescription subpass = {};
+	subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+	subpass.colorAttachmentCount = 1;
+	subpass.pColorAttachments = &colorAttachmentRef;
+	subpass.pDepthStencilAttachment = &depthAttachmentRef;
+
+	// Specify dependency for transitioning the image layout for rendering. 
+	VkSubpassDependency dependency = {};
+	dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+	dependency.dstSubpass = 0;
+	dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	dependency.srcAccessMask = 0;
+	dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+	VkRenderPassCreateInfo renderPassInfo = {};
+	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+	renderPassInfo.attachmentCount = num_attach;
+	renderPassInfo.pAttachments = attach;
+	renderPassInfo.subpassCount = 1;
+	renderPassInfo.pSubpasses = &subpass;
+	renderPassInfo.dependencyCount = 1;
+	renderPassInfo.pDependencies = &dependency;
+
+	VkRenderPass pass;
+	if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &pass) != VK_SUCCESS) {
+		throw std::runtime_error("failed to create render pass!");
+	}
+	return pass;
+}
+
+/* Find a supported image format.
+physDevice	<<	Physical device
+candidates	<<	List of VkFormats checked for support prioritized by order.
+num_cand	<<	Number of candidates in the list.
+tiling		<<	Type of image tiling specified.
+features	<<	Tiling feature flags queried for.
+return		>>	First format in the candidate list that fits the specified params.
+*/
+VkFormat findSupportedFormat(VkPhysicalDevice physDevice, const VkFormat* candidates, size_t num_cand, VkImageTiling tiling, VkFormatFeatureFlags features) {
+	for (size_t i = 0; i < num_cand; i++) {
+		VkFormatProperties props;
+		vkGetPhysicalDeviceFormatProperties(physDevice, candidates[i], &props);
+
+		if (tiling == VK_IMAGE_TILING_LINEAR && (props.linearTilingFeatures & features) == features) {
+			return candidates[i];
+		}
+		else if (tiling == VK_IMAGE_TILING_OPTIMAL && (props.optimalTilingFeatures & features) == features) {
+			return candidates[i];
+		}
+	}
+	throw std::runtime_error("Failed to find supported format!");
+}
+
+/* Find a suitable depth format related to the physical device
+*/
+VkFormat findDepthFormat(VkPhysicalDevice physDevice) {
+	const size_t num_cand = 3;
+	VkFormat list[num_cand] = { VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT };
+	return findSupportedFormat(
+		physDevice, 
+		list, num_cand,
+		VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
+	);
+
+}
+
+/* Check if a specific image format has a stencil component.
+*/
+bool hasStencilComponent(VkFormat format) {
+	return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
 }
 #pragma endregion
 
@@ -558,14 +677,43 @@ VkImage createTexture2D(VkDevice device, uint32_t width, uint32_t height, VkForm
 	}
 	return texture;
 }
+VkImage createDepthBuffer(VkDevice device, uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling)
+{
+	VkImageCreateInfo imageInfo = {};
+	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	imageInfo.imageType = VK_IMAGE_TYPE_2D;
+	imageInfo.extent.width = width;
+	imageInfo.extent.height = height;
+	imageInfo.format = format;
+	imageInfo.extent.depth = 1;
+	imageInfo.mipLevels = 1;
+	imageInfo.arrayLayers = 1;
 
-VkImageView createImageView(VkDevice device, VkImage image, VkFormat format, VkImageViewType viewType) {
+	imageInfo.tiling = tiling;
+	imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	// This image is used for sampling!...
+	imageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+	imageInfo.flags = 0; // Optional
+	imageInfo.queueFamilyIndexCount = 0;
+	imageInfo.pQueueFamilyIndices = nullptr;
+
+	VkImage texture;
+	VkResult result = vkCreateImage(device, &imageInfo, nullptr, &texture);
+	if (result != VK_SUCCESS) {
+		throw std::runtime_error("failed to create image!");
+	}
+	return texture;
+}
+
+VkImageView createImageView(VkDevice device, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, VkImageViewType viewType) {
 	VkImageViewCreateInfo viewInfo = {};
 	viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 	viewInfo.image = image;
 	viewInfo.viewType = viewType;
 	viewInfo.format = format;
-	viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	viewInfo.subresourceRange.aspectMask = aspectFlags;
 	viewInfo.subresourceRange.baseMipLevel = 0;
 	viewInfo.subresourceRange.levelCount = 1;
 	viewInfo.subresourceRange.baseArrayLayer = 0;
@@ -1151,6 +1299,24 @@ VkPipelineRasterizationStateCreateInfo defineRasterizationState(uint32_t rasterF
 	rasterizationState.depthBiasClamp = 0.0f;
 	rasterizationState.depthBiasSlopeFactor = 1.0f;
 	return rasterizationState;
+}
+
+/* Define a basic depth stencil create info.
+*/
+VkPipelineDepthStencilStateCreateInfo defineDepthState()
+{
+	VkPipelineDepthStencilStateCreateInfo depthStencil = {};
+	depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+	depthStencil.depthTestEnable = VK_TRUE;
+	depthStencil.depthWriteEnable = VK_TRUE;
+	depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+	depthStencil.depthBoundsTestEnable = VK_FALSE;
+	depthStencil.minDepthBounds = 0.0f; // Optional
+	depthStencil.maxDepthBounds = 1.0f; // Optional
+	depthStencil.stencilTestEnable = VK_FALSE;
+	depthStencil.front = {}; // Optional
+	depthStencil.back = {}; // Optional
+	return depthStencil;
 }
 
 #pragma endregion

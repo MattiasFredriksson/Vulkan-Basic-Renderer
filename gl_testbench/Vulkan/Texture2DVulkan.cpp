@@ -57,10 +57,10 @@ int Texture2DVulkan::loadFromFile(std::string filename)
 	_imageHandle = createTexture2D(_renderHandle->getDevice(), w, h, format);
 	_renderHandle->bindPhysicalMemory(_imageHandle, MemoryPool::IMAGE_RGBA8_BUFFER);
 	// Create and transfer image
-	_renderHandle->transitionImageFormat(_imageHandle, format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+	_renderHandle->transitionImageLayout(_imageHandle, format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 	_renderHandle->transferImageData(_imageHandle, rgb, glm::uvec3(w, h, 1), bytes);
 	stbi_image_free(rgb);
-	_renderHandle->transitionImageFormat(_imageHandle, format, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	_renderHandle->transitionImageLayout(_imageHandle, format, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
 	// Create image view
 	imageInfo.imageView = createImageView(_renderHandle->getDevice(), _imageHandle, format);

@@ -18,7 +18,7 @@ typedef unsigned int uint;
 void split(const char* text, std::vector<std::string>* const temp, const char delim = ' ')
 //void split(std::string text, std::vector<std::string>* const temp, const char delim = ' ')
 {
-	unsigned int delimPos = strcspn(text, (const char*)&delim);
+	size_t delimPos = strcspn(text, (const char*)&delim);
 	if (delimPos == strlen(text))
 	{
 		temp->push_back(std::string(text));
@@ -159,7 +159,7 @@ int MaterialGL::compileShader(ShaderType type, std::string& errString)
 		tempShaderLines[i++] = text.c_str();
 	
 	GLuint newShader = glCreateShader(mapShaderEnum[shaderIdx]);
-	glShaderSource(newShader, shaderLines.size(), tempShaderLines, nullptr);
+	glShaderSource(newShader, (GLsizei)shaderLines.size(), tempShaderLines, nullptr);
 	// ask GL to compile this
 	glCompileShader(newShader);
 	// print error or anything...
