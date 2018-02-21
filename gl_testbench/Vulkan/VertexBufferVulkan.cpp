@@ -1,6 +1,7 @@
 #include "VertexBufferVulkan.h"
 #include <vulkan/vulkan.h>
 #include <stdexcept>
+#define VULKAN_DEVICE_IMPLEMENTATION
 #include "../VulkanConstruct.h"
 #include "VulkanRenderer.h"
 
@@ -20,7 +21,7 @@ VertexBufferVulkan::~VertexBufferVulkan()
 
 void VertexBufferVulkan::setData(const void * data, size_t size, size_t offset)
 {
-	_renderHandle->transferBufferData(_bufferHandle, data, size, offset);
+	_renderHandle->transferBufferInitial(_bufferHandle, data, size, offset);
 }
 
 void VertexBufferVulkan::bind(size_t offset, size_t size, unsigned int location)

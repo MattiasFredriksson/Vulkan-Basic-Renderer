@@ -48,6 +48,26 @@ inline T rmvFlag(T property, uint32_t rmv)
 
 #pragma endregion
 
+#pragma region Structs
+namespace vk
+{
+	struct QueueConstruct
+	{
+		int family;
+		VkCommandPool pool;
+		VkQueue queue;
+
+		/* Destroy the queue related resources (the VkCommandPool)
+		*/
+		void destroyQueue(VkDevice dev);
+		/* Acquire the queue from device.
+		*/
+		void getDeviceQueue(VkDevice dev);
+		int createCommandPool(VkDevice dev, VkCommandPoolCreateFlags flag);
+	};
+}
+#pragma endregion
+
 /* Function declarations
 */
 
@@ -56,10 +76,11 @@ int anyQueueFamily(VkPhysicalDevice &device, VkQueueFlags* pref_queueFlag, int n
 int matchQueueFamily(VkPhysicalDevice &device, VkQueueFlags* pref_queueFlag, int num_flag);
 int pickQueueFamily(VkPhysicalDevice &device, VkQueueFlags* pref_queueFlag, int num_flag);
 
+VkDeviceQueueCreateInfo defineQueues(int family, float *prio, uint32_t num_queues);
+VkDeviceQueueCreateInfo defineQueue(int family, float prio);
+
 /* Device*/
 
-
-VkSemaphore createSemaphore(VkDevice device);
 
 /* Device selection */
 namespace vk
@@ -74,6 +95,7 @@ namespace vk
 int choosePhysicalDevice(VkInstance &instance, VkSurfaceKHR &surface, vk::isDeviceSuitable deviceSpec, VkQueueFlags queueSupportReq, VkPhysicalDevice &result);
 
 std::vector<char*> checkValidationLayerSupport(char** validationLayers, size_t num_layer);
+void checkValidImageFormats(VkPhysicalDevice device);
 
 /* Swap chain */
 
@@ -108,7 +130,12 @@ VkDeviceMemory allocPhysicalMemory(VkDevice device, VkPhysicalDevice physicalDev
 /* Commands */
 
 VkCommandBuffer beginSingleCommand(VkDevice device, VkCommandPool commandPool);
-void endSingleCommand_Wait(VkDevice device, VkQueue queue, VkCommandPool commandPool, VkCommandBuffer commandBuf);
+void endSingleCommand(VkDevice device, VkQueue queue, VkCommandBuffer commandBuf, uint32_t submitCount = 1, VkFence fence = VK_NULL_HANDLE);
+void endSingleCommand_Wait(VkDevice device, VkQueue queue, VkCommandPool commandPool, VkCommandBuffer commandBuf, uint32_t submitCount = 1);
+
+VkSemaphore createSemaphore(VkDevice device);
+VkFence createFence(VkDevice device, bool signaled = false);
+void waitFence(VkDevice device, VkFence fence);
 
 #pragma region Descriptors
 
@@ -165,7 +192,37 @@ VkPipelineVertexInputStateCreateInfo defineVertexBufferBindings(
 #pragma endregion
 
 #ifdef VULKAN_DEVICE_IMPLEMENTATION
+#include <iostream>
 
+#pragma region Structs
+namespace vk
+{
+	/* Destroy the queue related resources (the VkCommandPool)
+	*/
+	void QueueConstruct::destroyQueue(VkDevice dev)
+	{
+		vkDestroyCommandPool(dev, pool, nullptr);
+	}
+	/* Acquire the queue from device.
+	*/
+	void QueueConstruct::getDeviceQueue(VkDevice dev)
+	{
+		vkGetDeviceQueue(dev, family, 0, &queue);
+	}
+	int QueueConstruct::createCommandPool(VkDevice dev, VkCommandPoolCreateFlags flag)
+	{
+		VkCommandPoolCreateInfo commandPoolCreateInfo = {};
+		commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+		commandPoolCreateInfo.pNext = nullptr;
+		commandPoolCreateInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
+		commandPoolCreateInfo.queueFamilyIndex = family;
+		VkResult err = vkCreateCommandPool(dev, &commandPoolCreateInfo, nullptr, &pool);
+		if (err != VK_SUCCESS)
+			return -1;
+		return 0;
+	}
+}
+#pragma endregion
 
 #pragma region Device
 
@@ -219,6 +276,9 @@ int matchQueueFamily(VkPhysicalDevice &device, VkQueueFlags* pref_queueFlag, int
 }
 
 /* Find a queue family that exactly matches one of the preferences, if nothing found the any family that supports the preference is selected.
+device			<<	Physical device
+pref_queueFlag	<<	List of queue flags ordered so that the first queue match to one bit flag is selected.
+num_flag		<<	Number of flags in the ordered list.
 */
 int pickQueueFamily(VkPhysicalDevice &device, VkQueueFlags* pref_queueFlag, int num_flag)
 {
@@ -363,8 +423,66 @@ VkSemaphore createSemaphore(VkDevice device) {
 	semaphoreInfo.pNext = nullptr;
 	VkSemaphore semaphore;
 	if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &semaphore) != VK_SUCCESS)
-		throw std::runtime_error("failed to create semaphores!");
+		throw std::runtime_error("Failed to create semaphore!");
 	return semaphore;
+}
+/* Create a fence
+device		<<	...
+signaled	<<	If the fence is initially set in a signaled state.
+*/
+VkFence createFence(VkDevice device, bool signaled)
+{
+	VkFenceCreateInfo createInfo = {};
+	createInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+	createInfo.pNext = nullptr;
+	// If flags contains VK_FENCE_CREATE_SIGNALED_BIT then the fence object is created in the signaled state. Otherwise it is created in the unsignaled state.
+	createInfo.flags = signaled ? VK_FENCE_CREATE_SIGNALED_BIT : 0;
+
+	VkFence fence;
+	if(vkCreateFence(device, &createInfo, nullptr, &fence) != VK_SUCCESS)
+		throw std::runtime_error("Failed to create fence!");
+	return fence;
+}
+/* Wait for a single fence until set (spin lock with timeout), the fence is then reset.
+*/
+void waitFence(VkDevice device, VkFence fence)
+{
+	while (vkWaitForFences(device, 1, &fence, VK_TRUE, 5) != VK_SUCCESS)
+	{	}
+	vkResetFences(device, 1, &fence);
+}
+/* Define creation of a single queue of the family type.
+family	<<	Queue family index
+prio	<<	Priority of commands submitted in the queue
+return		>>	A defined VkDeviceQueueCreateInfo struct
+*/
+VkDeviceQueueCreateInfo defineQueue(int family, float prio)
+{
+	VkDeviceQueueCreateInfo queueInfo;
+	queueInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+	queueInfo.pNext = nullptr;
+	queueInfo.flags = 0;
+	queueInfo.queueFamilyIndex = family;
+	queueInfo.queueCount = 1;
+	queueInfo.pQueuePriorities = &prio;	// Defines the prio for each created queue
+	return queueInfo;
+}
+/* Define creation of a set of queues of the family type.
+family	<<	Queue family index
+prio	<<	List of priority values of each queue.
+num_queues	<<	Number of queues of the family to create (note the priority list must be of same size).
+return		>>	A defined VkDeviceQueueCreateInfo struct 
+*/
+VkDeviceQueueCreateInfo defineQueues(int family, float *prio, uint32_t num_queues)
+{
+	VkDeviceQueueCreateInfo queueInfo;
+	queueInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+	queueInfo.pNext = nullptr;
+	queueInfo.flags = 0;
+	queueInfo.queueFamilyIndex = family;
+	queueInfo.queueCount = num_queues;
+	queueInfo.pQueuePriorities = prio;	// Defines the prio for each created queue
+	return queueInfo;
 }
 
 #pragma endregion
@@ -768,6 +886,8 @@ VkSampler createSampler(VkDevice device, VkFilter magFilter, VkFilter minFilter,
 	}
 	return sampler;
 }
+/* Check for a list of image formats supported.
+*/
 void checkValidImageFormats(VkPhysicalDevice device)
 {
 	const int NUM_FORMAT = 2;
@@ -879,8 +999,11 @@ VkDeviceMemory allocPhysicalMemory(VkDevice device, VkPhysicalDevice physicalDev
 
 
 #pragma region Command
-/* Create a command of single time use taking one command.
-commandPool << Pool to allocate command buffer from.
+/* Create a command buffer for single time use.
+device		<<	The device
+commandPool <<	Pool to allocate command buffer from.
+bufferSize	<<	Max number of commands possible in the buffer.
+return		>>	The created command buffer.
 */
 VkCommandBuffer beginSingleCommand(VkDevice device, VkCommandPool commandPool)
 {
@@ -910,9 +1033,49 @@ VkCommandBuffer beginSingleCommand(VkDevice device, VkCommandPool commandPool)
 	return commandBuffer;
 }
 
-/* Submit and clean-up a single time use command buffer.
+/* Submit, wait for finish and clean-up a single time use command buffer.
+device		<<	The device
+queue		<<	The queue to submit the buffer.
+commandPool	<<	Command pool to free the command buffer from.
+commandBuf	<<	The command buffer to submit.
+submitCount	<<	Number of commands to submit.
 */
-void endSingleCommand_Wait(VkDevice device, VkQueue queue, VkCommandPool commandPool, VkCommandBuffer commandBuf)
+void endSingleCommand_Wait(VkDevice device, VkQueue queue, VkCommandPool commandPool, VkCommandBuffer commandBuf, uint32_t submitCount)
+{
+	// End command recording
+	vkEndCommandBuffer(commandBuf);
+
+	// Submit command buffer to queue
+	VkSubmitInfo submitInfo = {};
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submitInfo.pNext = nullptr;
+	submitInfo.waitSemaphoreCount = 0;
+	submitInfo.pWaitSemaphores = nullptr;
+	submitInfo.pWaitDstStageMask = nullptr;
+	submitInfo.commandBufferCount = submitCount;
+	submitInfo.pCommandBuffers = &commandBuf;
+	submitInfo.signalSemaphoreCount = 0;
+	submitInfo.pSignalSemaphores = nullptr;
+
+	vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE);
+	vkQueueWaitIdle(queue);		// Wait until the copy is complete
+	vkFreeCommandBuffers(device, commandPool, 1, &commandBuf);
+}
+
+/* Wait for queue to idle then release command buffer.
+*/
+void releaseCommandBuffer(VkDevice device, VkQueue queue, VkCommandPool commandPool, VkCommandBuffer commandBuf)
+{
+	vkQueueWaitIdle(queue);		// Wait until the copy is complete
+	vkFreeCommandBuffers(device, commandPool, 1, &commandBuf);
+}
+/* Submit a single time use command buffer.
+device		<<	The device
+queue		<<	The queue to submit the buffer.
+commandBuf	<<	The command buffer to submit.
+submitCount	<<	Number of commands to submit.
+*/
+void endSingleCommand(VkDevice device, VkQueue queue, VkCommandBuffer commandBuf, uint32_t submitCount, VkFence fence)
 {
 	// End command recording
 	vkEndCommandBuffer(commandBuf);
@@ -929,10 +1092,7 @@ void endSingleCommand_Wait(VkDevice device, VkQueue queue, VkCommandPool command
 	submitInfo.signalSemaphoreCount = 0;
 	submitInfo.pSignalSemaphores = nullptr;
 
-	vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE);
-	vkQueueWaitIdle(queue);		// Wait until the copy is complete
-
-	vkFreeCommandBuffers(device, commandPool, 1, &commandBuf);
+	vkQueueSubmit(queue, 1, &submitInfo, fence);
 }
 
 

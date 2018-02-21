@@ -95,20 +95,6 @@ bool MaterialVulkan::hasDefine(Material::ShaderType shaderType, std::string sear
 	return false;
 }
 
-std::vector<std::pair<unsigned, VkDescriptorBufferInfo*>> MaterialVulkan::getBufferInfos()
-{
-	std::vector<std::pair<unsigned, VkDescriptorBufferInfo*>> bufferInfos;
-
-	for (auto cb : constantBuffers)
-	{
-		bufferInfos.push_back(std::make_pair(
-			cb.first, ((ConstantBufferVulkan*)cb.second)->getDescriptorBufferInfo()
-		));
-	}
-
-	return bufferInfos;
-}
-
 #pragma region Shader creation
 
 

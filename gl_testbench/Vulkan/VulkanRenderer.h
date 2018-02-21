@@ -13,6 +13,7 @@
 #pragma comment(lib,"glew32.lib")
 #pragma comment(lib,"SDL2.lib")
 #pragma comment(lib,"SDL2main.lib")
+#include "../VulkanConstruct.h"
 
 struct DevMemoryAllocation
 {
@@ -77,11 +78,14 @@ public:
 
 	/* Transfer data to the specific buffer. */
 	void transferBufferData(VkBuffer buffer, const void* data, size_t size, size_t offset);
+	void transferBufferInitial(VkBuffer buffer, const void* data, size_t size, size_t offset);
 	void transferImageData(VkImage image, const void* data, glm::uvec3 img_size, uint32_t pixel_bytes, glm::ivec3 offset = glm::ivec3(0));
 	void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout fromLayout, VkImageLayout toLayout);
 
 	VkSurfaceFormatKHR getSwapchainFormat();
 	VkCommandBuffer getFrameCmdBuf();
+	uint32_t getFrameIndex() { return frameCycle; }
+	uint32_t getTransferIndex() { return !frameCycle; }
 	VkPipelineLayout getPipelineLayout();
 
 
@@ -94,6 +98,7 @@ private:
 	VkDevice device;
 	int chosenPhysicalDevice;
 	VkPhysicalDevice physicalDevice;
+	VkPhysicalDeviceProperties deviceProperties;
 	std::vector<DevMemoryAllocation> memPool;// Memory pool of device memory
 
 	bool globalWireframeMode = false;
@@ -124,8 +129,11 @@ private:
 	VkSemaphore imageAvailableSemaphore;
 	VkSemaphore renderFinishedSemaphore;
 	VkCommandBuffer _frameCmdBuf;
-	uint32_t frameBufIndex;					//Tracks frame buffer index for current frame
-
+	VkCommandBuffer _transferBuf[2];
+	VkFence			_transferFences[2];
+	uint32_t frameBufIndex;												//Tracks frame buffer index for current frame
+	uint32_t frameCycle = 0, transferCount = 0, stagingCycleOffset = 0;	// Tracks transfer cycle
+	bool firstFrame = 1;
 	/*
 	*/
 	VkDescriptorPool descriptorPools[MAX_DESCRIPTOR_POOLS];
@@ -135,24 +143,28 @@ private:
 
 	VkBuffer stagingBuffer;			// Buffer to temporarily hold data being transferred to GPU
 
-	VkCommandPool stagingCommandPool;	// Allocates commands used when moving data to the GPU
-	VkCommandPool drawingCommandPool;	// Allocates commands used for drawing
+	enum QueueType {
+		MEM = 0,
+		GRAPHIC = 1,
+		COUNT = 2
+	};
+	vk::QueueConstruct queues[QueueType::COUNT];
 
-	int chosenQueueFamily;		// The queue family to be used
-	VkQueue queue;		// Handle to the queue used
+	int chosenQueueFamily_asd;		// The queue family to be used
+	VkQueue queue_asd;		// Handle to the queue used
 
 	VkSurfaceFormatKHR swapchainFormat;
 	VkExtent2D swapchainExtent;
 
 	void createStagingBuffer();
-	void updateStagingBuffer(const void* data, size_t size);								// Writes memory from data into the staging buffer
+	uint32_t updateStagingBuffer(const void* data, size_t size);								// Writes memory from data into the staging buffer
 	void allocateBufferMemory(MemoryPool type, size_t size, VkFlags usage);					// Allocates memory pool buffer data
 	void allocateImageMemory(MemoryPool type, size_t size, VkFormat imgFormat);				// Allocates memory pool image data
 	void allocateImageMemory(MemoryPool type, VkImage &image, VkFormat imgFormat);
 
+	void nextFrame();
 
 	void defineDescriptorLayout();
 	void generatePipelineLayout();
 	void createDepthComponents();
-	void createCommandPools();
 };

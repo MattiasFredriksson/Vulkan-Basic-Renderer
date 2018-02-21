@@ -64,9 +64,7 @@ public:
 
 	// Returns true if the defines for shaderType includes searchString
 	bool hasDefine(Material::ShaderType shaderType, std::string searchString);
-
-	std::vector<std::pair<unsigned, VkDescriptorBufferInfo*>> getBufferInfos();
-
+	
 	VkShaderModule vertexShader;
 	VkShaderModule fragmentShader;
 	
