@@ -133,8 +133,8 @@ private:
 	VkCommandBuffer _frameCmdBuf;
 	VkCommandBuffer _transferCmd[2];
 	VkFence			_transferFences[2];
-	uint32_t frameBufIndex;												//Tracks frame buffer index for current frame
-	uint32_t frameCycle = 0, transferCount = 0, stagingCycleOffset = 0;	// Tracks transfer cycle
+	uint32_t frameBufIndex;								// Tracks frame buffer index for current frame
+	uint32_t frameCycle = 0, stagingCycleOffset = 0;	// Tracks transfer cycle
 	bool firstFrame = 1;
 	/*
 	*/

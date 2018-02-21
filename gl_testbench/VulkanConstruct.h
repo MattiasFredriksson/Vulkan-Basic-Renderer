@@ -129,9 +129,12 @@ VkDeviceMemory allocPhysicalMemory(VkDevice device, VkPhysicalDevice physicalDev
 
 /* Commands */
 
+VkCommandBuffer allocateCmdBuf(VkDevice device, VkCommandPool commandPool);
+void beginCmdBuf(VkCommandBuffer cmdBuf, VkFlags flag = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 VkCommandBuffer beginSingleCommand(VkDevice device, VkCommandPool commandPool);
-void endSingleCommand(VkDevice device, VkQueue queue, VkCommandBuffer commandBuf, uint32_t submitCount = 1, VkFence fence = VK_NULL_HANDLE);
-void endSingleCommand_Wait(VkDevice device, VkQueue queue, VkCommandPool commandPool, VkCommandBuffer commandBuf, uint32_t submitCount = 1);
+void endSingleCommand(VkDevice device, VkQueue queue, VkCommandBuffer commandBuf, VkFence fence = VK_NULL_HANDLE);
+void endSingleCommand_Wait(VkDevice device, VkQueue queue, VkCommandPool commandPool, VkCommandBuffer commandBuf);
+void releaseCommandBuffer(VkDevice device, VkQueue queue, VkCommandPool commandPool, VkCommandBuffer commandBuf);
 
 VkSemaphore createSemaphore(VkDevice device);
 VkFence createFence(VkDevice device, bool signaled = false);
@@ -214,7 +217,7 @@ namespace vk
 		VkCommandPoolCreateInfo commandPoolCreateInfo = {};
 		commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 		commandPoolCreateInfo.pNext = nullptr;
-		commandPoolCreateInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
+		commandPoolCreateInfo.flags = flag;
 		commandPoolCreateInfo.queueFamilyIndex = family;
 		VkResult err = vkCreateCommandPool(dev, &commandPoolCreateInfo, nullptr, &pool);
 		if (err != VK_SUCCESS)
@@ -999,13 +1002,13 @@ VkDeviceMemory allocPhysicalMemory(VkDevice device, VkPhysicalDevice physicalDev
 
 
 #pragma region Command
-/* Create a command buffer for single time use.
+/* Create a command buffer for re-use.
 device		<<	The device
 commandPool <<	Pool to allocate command buffer from.
 bufferSize	<<	Max number of commands possible in the buffer.
 return		>>	The created command buffer.
 */
-VkCommandBuffer beginSingleCommand(VkDevice device, VkCommandPool commandPool)
+VkCommandBuffer allocateCmdBuf(VkDevice device, VkCommandPool commandPool)
 {
 	// Create command buffer
 	VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
@@ -1019,18 +1022,33 @@ VkCommandBuffer beginSingleCommand(VkDevice device, VkCommandPool commandPool)
 	VkResult result = vkAllocateCommandBuffers(device, &commandBufferAllocateInfo, &commandBuffer);
 	if (result != VK_SUCCESS)
 		throw std::runtime_error("Failed to create command buffer for staging.");
-
+	return commandBuffer;
+}
+/* Call vkBeginCommandBuffer with single submit usage.
+*/
+void beginCmdBuf(VkCommandBuffer cmdBuf, VkFlags flag)
+{
 	// Begin recording into command buffer
 	VkCommandBufferBeginInfo commandBufferBeginInfo = {};
 	commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 	commandBufferBeginInfo.pNext = nullptr;
-	commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+	commandBufferBeginInfo.flags = flag; //Recording will be submitted once.
 	commandBufferBeginInfo.pInheritanceInfo = nullptr;
 
-	result = vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo);
+	VkResult result = vkBeginCommandBuffer(cmdBuf, &commandBufferBeginInfo);
 	if (result != VK_SUCCESS)
 		throw std::runtime_error("Failed to begin command buffer.");
-	return commandBuffer;
+}
+/* Create a command buffer for single time use.
+device		<<	The device
+commandPool <<	Pool to allocate command buffer from.
+return		>>	The created command buffer.
+*/
+VkCommandBuffer beginSingleCommand(VkDevice device, VkCommandPool commandPool)
+{
+	VkCommandBuffer cmdBuf = allocateCmdBuf(device, commandPool);
+	beginCmdBuf(cmdBuf);
+	return cmdBuf;
 }
 
 /* Submit, wait for finish and clean-up a single time use command buffer.
@@ -1040,7 +1058,7 @@ commandPool	<<	Command pool to free the command buffer from.
 commandBuf	<<	The command buffer to submit.
 submitCount	<<	Number of commands to submit.
 */
-void endSingleCommand_Wait(VkDevice device, VkQueue queue, VkCommandPool commandPool, VkCommandBuffer commandBuf, uint32_t submitCount)
+void endSingleCommand_Wait(VkDevice device, VkQueue queue, VkCommandPool commandPool, VkCommandBuffer commandBuf)
 {
 	// End command recording
 	vkEndCommandBuffer(commandBuf);
@@ -1052,20 +1070,12 @@ void endSingleCommand_Wait(VkDevice device, VkQueue queue, VkCommandPool command
 	submitInfo.waitSemaphoreCount = 0;
 	submitInfo.pWaitSemaphores = nullptr;
 	submitInfo.pWaitDstStageMask = nullptr;
-	submitInfo.commandBufferCount = submitCount;
+	submitInfo.commandBufferCount = 1;
 	submitInfo.pCommandBuffers = &commandBuf;
 	submitInfo.signalSemaphoreCount = 0;
 	submitInfo.pSignalSemaphores = nullptr;
 
 	vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE);
-	vkQueueWaitIdle(queue);		// Wait until the copy is complete
-	vkFreeCommandBuffers(device, commandPool, 1, &commandBuf);
-}
-
-/* Wait for queue to idle then release command buffer.
-*/
-void releaseCommandBuffer(VkDevice device, VkQueue queue, VkCommandPool commandPool, VkCommandBuffer commandBuf)
-{
 	vkQueueWaitIdle(queue);		// Wait until the copy is complete
 	vkFreeCommandBuffers(device, commandPool, 1, &commandBuf);
 }
@@ -1075,7 +1085,7 @@ queue		<<	The queue to submit the buffer.
 commandBuf	<<	The command buffer to submit.
 submitCount	<<	Number of commands to submit.
 */
-void endSingleCommand(VkDevice device, VkQueue queue, VkCommandBuffer commandBuf, uint32_t submitCount, VkFence fence)
+void endSingleCommand(VkDevice device, VkQueue queue, VkCommandBuffer commandBuf, VkFence fence)
 {
 	// End command recording
 	vkEndCommandBuffer(commandBuf);
@@ -1093,6 +1103,14 @@ void endSingleCommand(VkDevice device, VkQueue queue, VkCommandBuffer commandBuf
 	submitInfo.pSignalSemaphores = nullptr;
 
 	vkQueueSubmit(queue, 1, &submitInfo, fence);
+}
+
+/* Wait for queue to idle then release command buffer.
+*/
+void releaseCommandBuffer(VkDevice device, VkQueue queue, VkCommandPool commandPool, VkCommandBuffer commandBuf)
+{
+	vkQueueWaitIdle(queue);		// Wait until the copy is complete
+	vkFreeCommandBuffers(device, commandPool, 1, &commandBuf);
 }
 
 

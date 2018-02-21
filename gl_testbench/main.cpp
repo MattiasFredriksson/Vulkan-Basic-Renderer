@@ -303,6 +303,7 @@ void shutdown() {
 
 int main(int argc, char *argv[])
 {
+	//_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 #if defined(VULKANENGINE)
 	renderer = Renderer::makeRenderer(Renderer::BACKEND::VULKAN);
 #elif defined(GLENGINE)

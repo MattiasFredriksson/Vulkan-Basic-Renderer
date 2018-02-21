@@ -285,7 +285,7 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 	// Allocate device memory
 	createStagingBuffer();
 	// Create command pools
-	if (queues[QueueType::MEM].createCommandPool(device, VK_COMMAND_POOL_CREATE_TRANSIENT_BIT))
+	if (queues[QueueType::MEM].createCommandPool(device, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT))
 		throw std::runtime_error("Failed to create staging command pool.");
 	if (queues[QueueType::GRAPHIC].createCommandPool(device, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT))
 		throw std::runtime_error("Failed to create graphic command pool.");
@@ -328,9 +328,10 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 		= createDescriptorPoolSingle(device, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2000);
 
 	//Begin initial transfer command
-	_transferCmd[0] = NULL;
-	_transferCmd[1] = NULL;
-	_transferCmd[getTransferIndex()] = beginSingleCommand(device, queues[QueueType::MEM].pool);
+	_transferCmd[0] = allocateCmdBuf(device, queues[QueueType::MEM].pool);
+	_transferCmd[1] = allocateCmdBuf(device, queues[QueueType::MEM].pool);
+	_frameCmdBuf = allocateCmdBuf(device, queues[QueueType::GRAPHIC].pool);
+	beginCmdBuf(_transferCmd[getTransferIndex()]);
 
 	return 0;
 }
@@ -338,8 +339,9 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 
 int VulkanRenderer::beginShutdown()
 {
-	if (_transferCmd[getTransferIndex()])
-		endSingleCommand_Wait(device, queues[QueueType::MEM].queue, queues[QueueType::MEM].pool, _transferCmd[getTransferIndex()], transferCount);
+	endSingleCommand_Wait(device, queues[QueueType::MEM].queue, queues[QueueType::MEM].pool, _transferCmd[getTransferIndex()]);
+	releaseCommandBuffer(device, queues[QueueType::MEM].queue, queues[QueueType::MEM].pool, _transferCmd[getFrameIndex()]);
+	releaseCommandBuffer(device, queues[QueueType::GRAPHIC].queue, queues[QueueType::GRAPHIC].pool, _frameCmdBuf);
 	// Wait for device to finish before shuting down..
 	vkDeviceWaitIdle(device);
 	return 0;
@@ -421,7 +423,9 @@ void VulkanRenderer::present()
 	vkQueuePresentKHR(queues[QueueType::GRAPHIC].queue, &presentInfo);
 
 	vkQueueWaitIdle(queues[QueueType::GRAPHIC].queue);
-	vkResetCommandPool(device, queues[QueueType::GRAPHIC].pool, VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT);
+	VkResult err = vkResetCommandBuffer(_frameCmdBuf, VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT);
+	if (err)
+		std::cout << "Command buff reset err\n";
 
 	nextFrame();
 }
@@ -432,35 +436,21 @@ void VulkanRenderer::nextFrame()
 
 	// Wait for second to last transfer to complete, then create new command buffer!
 	waitFence(device, _transferFences[getTransferIndex()]);
-	if(_transferCmd[getTransferIndex()])
-		vkFreeCommandBuffers(device, queues[QueueType::MEM].pool, 1, &_transferCmd[getTransferIndex()]);
-	_transferCmd[getTransferIndex()] = beginSingleCommand(device, queues[QueueType::MEM].pool);
-	transferCount = 0;
+	VkResult err = vkResetCommandBuffer(_transferCmd[getTransferIndex()], VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT);
+	if (err)
+		std::cout << "Command buff reset err\n";
+	beginCmdBuf(_transferCmd[getTransferIndex()]);
 }
 
 void VulkanRenderer::frame()
 {
 	// Submit transfer commands
-	endSingleCommand(device, queues[QueueType::MEM].queue, _transferCmd[getTransferIndex()], transferCount, _transferFences[getTransferIndex()]);
+	endSingleCommand(device, queues[QueueType::MEM].queue, _transferCmd[getTransferIndex()], _transferFences[getTransferIndex()]);
 
 	// Start rendering
 	vkAcquireNextImageKHR(device, swapchain, std::numeric_limits<uint64_t>::max(), imageAvailableSemaphore, VK_NULL_HANDLE, &frameBufIndex);
 
-	VkCommandBufferAllocateInfo allocInfo = {};
-	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	allocInfo.commandPool = queues[QueueType::GRAPHIC].pool;
-	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	allocInfo.commandBufferCount = 1;
-
-	if (vkAllocateCommandBuffers(device, &allocInfo, &_frameCmdBuf) != VK_SUCCESS) {
-		throw std::runtime_error("failed to allocate command buffers!");
-	}
-
-	VkCommandBufferBeginInfo beginInfo = {};
-	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT;
-	beginInfo.pInheritanceInfo = nullptr; // Optional
-	vkBeginCommandBuffer(_frameCmdBuf, &beginInfo);
+	beginCmdBuf(_frameCmdBuf, VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT | VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
 	//Render pass
 	VkRenderPassBeginInfo renderPassInfo = {};
@@ -567,7 +557,7 @@ void VulkanRenderer::createDepthComponents()
 {
 	depthFormat = findDepthFormat(physicalDevice);
 	depthImage = createDepthBuffer(device, swapchainExtent.width, swapchainExtent.height, depthFormat, VK_IMAGE_TILING_OPTIMAL);
-	allocateImageMemory(MemoryPool::IMAGE_RGBA8_BUFFER, depthImage, depthFormat);
+	bindPhysicalMemory(depthImage, MemoryPool::IMAGE_RGBA8_BUFFER);
 	depthImageView = createImageView(device, depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
 	transitionImageLayout(depthImage, depthFormat, 
 		VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
@@ -630,7 +620,6 @@ VkDescriptorSet VulkanRenderer::generateDescriptor(VkDescriptorType type, uint32
 
 void VulkanRenderer::transferBufferData(VkBuffer buffer, const void* data, size_t size, size_t offset)
 {
-	transferCount++;
 	uint32_t src_offset = updateStagingBuffer(data, size);
 
 	// Record the copying command
