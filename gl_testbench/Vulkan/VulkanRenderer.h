@@ -59,6 +59,8 @@ public:
 	int initialize(unsigned int width = 640, unsigned int height = 480);
 	void setWinTitle(const char* title);
 	void present();
+
+	virtual int beginShutdown();
 	int shutdown();
 
 	void setClearColor(float r, float g, float b, float a);
@@ -129,7 +131,7 @@ private:
 	VkSemaphore imageAvailableSemaphore;
 	VkSemaphore renderFinishedSemaphore;
 	VkCommandBuffer _frameCmdBuf;
-	VkCommandBuffer _transferBuf[2];
+	VkCommandBuffer _transferCmd[2];
 	VkFence			_transferFences[2];
 	uint32_t frameBufIndex;												//Tracks frame buffer index for current frame
 	uint32_t frameCycle = 0, transferCount = 0, stagingCycleOffset = 0;	// Tracks transfer cycle

@@ -328,17 +328,25 @@ int VulkanRenderer::initialize(unsigned int width, unsigned int height)
 		= createDescriptorPoolSingle(device, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2000);
 
 	//Begin initial transfer command
-	_transferBuf[0] = NULL;
-	_transferBuf[1] = NULL;
-	_transferBuf[getTransferIndex()] = beginSingleCommand(device, queues[QueueType::MEM].pool);
+	_transferCmd[0] = NULL;
+	_transferCmd[1] = NULL;
+	_transferCmd[getTransferIndex()] = beginSingleCommand(device, queues[QueueType::MEM].pool);
 
+	return 0;
+}
+
+
+int VulkanRenderer::beginShutdown()
+{
+	if (_transferCmd[getTransferIndex()])
+		endSingleCommand_Wait(device, queues[QueueType::MEM].queue, queues[QueueType::MEM].pool, _transferCmd[getTransferIndex()], transferCount);
+	// Wait for device to finish before shuting down..
+	vkDeviceWaitIdle(device);
 	return 0;
 }
 
 int VulkanRenderer::shutdown()
 {
-	// Wait for device to finish before shuting down..
-	vkDeviceWaitIdle(device);
 
 	// Clean up Vulkan
 	for (unsigned int i = 0; i < MAX_DESCRIPTOR_POOLS; i++)
@@ -356,6 +364,9 @@ int VulkanRenderer::shutdown()
 
 	vkDestroySemaphore(device, renderFinishedSemaphore, nullptr);
 	vkDestroySemaphore(device, imageAvailableSemaphore, nullptr);
+	vkDestroyFence(device, _transferFences[0], nullptr);
+	vkDestroyFence(device, _transferFences[1], nullptr);
+	vkDestroyBuffer(device, stagingBuffer, nullptr);
 
 	// Destroy frame buffer
 	vkDestroyImageView(device, depthImageView, nullptr);
@@ -368,6 +379,7 @@ int VulkanRenderer::shutdown()
 	// Clear memory
 	for(uint32_t i = 0; i < memPool.size(); i++)
 		vkFreeMemory(device, memPool[i].handle, nullptr);
+
 
 	vkDestroySwapchainKHR(device, swapchain, nullptr);
 	vkDestroyRenderPass(device, colorPass, nullptr);
@@ -420,17 +432,16 @@ void VulkanRenderer::nextFrame()
 
 	// Wait for second to last transfer to complete, then create new command buffer!
 	waitFence(device, _transferFences[getTransferIndex()]);
-	if(_transferBuf[getTransferIndex()])
-		vkFreeCommandBuffers(device, queues[QueueType::MEM].pool, 1, &_transferBuf[getTransferIndex()]);
-	_transferBuf[getTransferIndex()] = beginSingleCommand(device, queues[QueueType::MEM].pool);
+	if(_transferCmd[getTransferIndex()])
+		vkFreeCommandBuffers(device, queues[QueueType::MEM].pool, 1, &_transferCmd[getTransferIndex()]);
+	_transferCmd[getTransferIndex()] = beginSingleCommand(device, queues[QueueType::MEM].pool);
 	transferCount = 0;
 }
 
 void VulkanRenderer::frame()
 {
 	// Submit transfer commands
-	uint32_t ind = getTransferIndex();
-	endSingleCommand(device, queues[QueueType::MEM].queue, _transferBuf[ind], transferCount, _transferFences[getTransferIndex()]);
+	endSingleCommand(device, queues[QueueType::MEM].queue, _transferCmd[getTransferIndex()], transferCount, _transferFences[getTransferIndex()]);
 
 	// Start rendering
 	vkAcquireNextImageKHR(device, swapchain, std::numeric_limits<uint64_t>::max(), imageAvailableSemaphore, VK_NULL_HANDLE, &frameBufIndex);
@@ -628,7 +639,7 @@ void VulkanRenderer::transferBufferData(VkBuffer buffer, const void* data, size_
 	bufferCopyRegion.dstOffset = offset;
 	bufferCopyRegion.size = size;
 
-	vkCmdCopyBuffer(_transferBuf[getTransferIndex()], stagingBuffer, buffer, 1, &bufferCopyRegion);
+	vkCmdCopyBuffer(_transferCmd[getTransferIndex()], stagingBuffer, buffer, 1, &bufferCopyRegion);
 	
 }
 

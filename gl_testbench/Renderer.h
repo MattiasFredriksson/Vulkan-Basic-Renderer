@@ -47,6 +47,7 @@ public:
 	virtual void setWinTitle(const char* title) = 0;
 	virtual void present() = 0;
 	virtual int shutdown() = 0;
+	virtual int beginShutdown() { return 0; }
 
 	virtual void setClearColor(float, float, float, float) = 0;
 	virtual void clearBuffer(unsigned int) = 0;

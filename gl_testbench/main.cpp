@@ -267,6 +267,7 @@ int initialiseTestbench()
 }
 
 void shutdown() {
+	renderer->beginShutdown();
 	// shutdown.
 	// delete dynamic objects
 	for (auto m : materials)
