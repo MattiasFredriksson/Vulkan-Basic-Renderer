@@ -242,6 +242,7 @@ std::string MaterialVulkan::runCompiler(Material::ShaderType type, std::string i
 	if (!CreateProcessA("..\\assets\\Vulkan\\glslangValidator.exe", commandLine, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, path, startupInfoPointer, &processInfo))
 	{
 		//HRESULT res = HRESULT_FROM_WIN32(GetLastError());
+		std::cout << "Failed to start shader compilation process. Ensure '..\\assets\\Vulkan\\glslangValidator.exe' exists.\n";
 		throw std::runtime_error("Failed to start shader compilation process.");
 	}
 
